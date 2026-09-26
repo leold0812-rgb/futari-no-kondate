@@ -184,7 +184,7 @@ end;
 $$;
 
 -- 互換単位のlotだけを古い順に減らし、減らせなかった量（p_unit単位、小数2桁）を返す。
--- lotは小数2桁で保存するため、実際に減った量（丸め後の差）で残りを計算する
+-- lotは小数2桁で保存するため、残量は切り上げ（減らしすぎない）、実際に減った量で残りを計算する
 create function private.inventory_consume(p_space uuid, p_ingredient_id uuid, p_quantity numeric, p_unit text, p_reason text)
 returns numeric
 language plpgsql
@@ -217,7 +217,8 @@ begin
     for update of i
   loop
     exit when v_remaining <= 0;
-    v_new_quantity := greatest(round((v_lot.quantity * v_lot.factor - v_remaining) / v_lot.factor, 2), 0);
+    -- 残量は小数2桁へ切り上げる（要求より多く減らさない）。実際に減った量で残りを計算する
+    v_new_quantity := greatest(ceil((v_lot.quantity * v_lot.factor - v_remaining) / v_lot.factor * 100) / 100, 0);
     v_taken := (v_lot.quantity - v_new_quantity) * v_lot.factor;
     if v_new_quantity = 0 then
       delete from public.inventory_items as i where i.id = v_lot.id;
