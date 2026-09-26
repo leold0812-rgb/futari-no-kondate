@@ -128,12 +128,11 @@ create index recipe_histories_recipe_idx on public.recipe_histories (couple_spac
 revoke all on table public.weekly_plans, public.recommendation_runs, public.recommendation_candidates,
   public.meal_sets, public.recipe_histories from anon, authenticated;
 
--- 計画・推薦結果・献立セットの書き込みは下の関数（SECURITY DEFINER、関数内で自分のspaceかを確かめる）だけで行う
+-- 計画・推薦結果・判断・献立セットの書き込みは下の関数（SECURITY DEFINER、関数内で自分のspaceかを確かめる）だけで行う。
+-- 判断と確定はどちらも計画行をロックし、判断のたびに version を進める（確定と判断の競合・古い画面からの確定を防ぐ）
 grant select on table public.weekly_plans to authenticated;
 grant select on table public.recommendation_runs to authenticated;
 grant select on table public.recommendation_candidates to authenticated;
--- スワイプの判断だけを直接更新できる（候補の中身・点数は変えられない）
-grant update (decision, decided_at, decided_by) on table public.recommendation_candidates to authenticated;
 grant select on table public.meal_sets to authenticated;
 grant select on table public.recipe_histories to authenticated;
 
@@ -224,6 +223,9 @@ begin
     raise exception 'invalid candidates' using errcode = '22023';
   end if;
 
+  -- 候補が入れ替わるため版を進める（古い画面からの確定・判断を拒否する）
+  update public.weekly_plans as p set version = p.version + 1 where p.id = p_plan_id;
+
   insert into public.recommendation_runs (weekly_plan_id, couple_space_id, algorithm_version, input_snapshot, notes, generated_by)
   values (p_plan_id, v_plan.couple_space_id, p_algorithm_version, coalesce(p_input_snapshot, '{}'::jsonb), coalesce(p_notes, '[]'::jsonb), auth.uid())
   returning id into v_run;
@@ -271,6 +273,13 @@ begin
   if v_status <> 'DRAFT' then
     raise exception 'weekly plan is already confirmed' using errcode = '55000';
   end if;
+  if exists (
+    select 1 from public.recommendation_runs as r
+    where r.weekly_plan_id = v_run.weekly_plan_id and (r.generated_at, r.id) > (v_run.generated_at, v_run.id)
+  ) then
+    raise exception 'recommendation run is outdated' using errcode = '40001';
+  end if;
+  update public.weekly_plans as p set version = p.version + 1 where p.id = v_run.weekly_plan_id;
 
   select c.id into v_id from public.recommendation_candidates as c where c.run_id = p_run_id and c.recipe_id = p_recipe_id;
   if v_id is not null then
@@ -301,11 +310,57 @@ end;
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 候補の判断（作る / スキップ / 未判断へ戻す）
+-- ---------------------------------------------------------------------------
+create function public.decide_candidate(p_candidate_id uuid, p_decision text)
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_space uuid := private.current_couple_space_id();
+  v_candidate public.recommendation_candidates;
+  v_run public.recommendation_runs;
+  v_plan public.weekly_plans;
+  v_latest uuid;
+begin
+  if p_decision not in ('PENDING', 'ACCEPTED', 'SKIPPED') then
+    raise exception 'invalid decision' using errcode = '22023';
+  end if;
+  select * into v_candidate from public.recommendation_candidates as c
+  where c.id = p_candidate_id and c.couple_space_id = v_space;
+  if not found then
+    raise exception 'candidate not found' using errcode = 'P0002';
+  end if;
+  select * into v_run from public.recommendation_runs as r where r.id = v_candidate.run_id;
+  -- 確定と同じ計画行のロックで直列化する
+  select * into v_plan from public.weekly_plans as p where p.id = v_run.weekly_plan_id for update;
+  if v_plan.status <> 'DRAFT' then
+    raise exception 'weekly plan is already confirmed' using errcode = '55000';
+  end if;
+  select r.id into v_latest from public.recommendation_runs as r
+  where r.weekly_plan_id = v_plan.id order by r.generated_at desc, r.id desc limit 1;
+  if v_latest <> v_run.id then
+    raise exception 'candidate belongs to an old recommendation' using errcode = '40001';
+  end if;
+
+  update public.recommendation_candidates as c
+  set decision = p_decision,
+      decided_at = case when p_decision = 'PENDING' then null else now() end,
+      decided_by = case when p_decision = 'PENDING' then null else auth.uid() end
+  where c.id = p_candidate_id;
+  update public.weekly_plans as p set version = p.version + 1 where p.id = v_plan.id;
+  return v_plan.version + 1;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
 -- 5品を確定する（1 transaction・楽観ロック・冪等）
 -- ---------------------------------------------------------------------------
--- p_sets: [{ main_recipe_id, side_recipe_id, soup_recipe_id }]（1〜7件。配列の順が表示順）
--- 戻り値: 確定後の version。既に同じ内容で確定済みなら何もせず現在の version を返す（二重送信に対して冪等）
-create function public.confirm_weekly_plan(p_plan_id uuid, p_expected_version integer, p_sets jsonb)
+-- 確定する主菜は、最新の推薦runで「作る」を選んだ候補（ちょうど5品）。判断の順に並べる。
+-- 戻り値: 確定後の version。既に確定済みなら何もせず現在の version を返す（二重送信・相手が先に確定した場合）
+create function public.confirm_weekly_plan(p_plan_id uuid, p_expected_version integer)
 returns integer
 language plpgsql
 security definer
@@ -313,64 +368,51 @@ set search_path = ''
 as $$
 declare
   v_plan public.weekly_plans;
-  v_mains uuid[];
+  v_run uuid;
+  v_count integer;
 begin
-  if jsonb_typeof(p_sets) <> 'array' or jsonb_array_length(p_sets) not between 1 and 7 then
-    raise exception 'meal sets must be 1 to 7 items' using errcode = '22023';
-  end if;
-  select array_agg((s.value ->> 'main_recipe_id')::uuid order by s.ordinality) into v_mains
-  from jsonb_array_elements(p_sets) with ordinality as s;
-
   select * into v_plan from public.weekly_plans as p
   where p.id = p_plan_id and p.couple_space_id = private.current_couple_space_id()
   for update;
   if not found then
     raise exception 'weekly plan not found' using errcode = 'P0002';
   end if;
-
   if v_plan.status <> 'DRAFT' then
-    -- 同じ内容の二重送信なら成功として扱う
-    if (select array_agg(m.main_recipe_id order by m.position) from public.meal_sets as m where m.weekly_plan_id = p_plan_id) = v_mains then
-      return v_plan.version;
-    end if;
-    raise exception 'weekly plan is already confirmed' using errcode = '55000';
+    return v_plan.version;
   end if;
   if v_plan.version <> p_expected_version then
     raise exception 'weekly plan was changed by someone else' using errcode = '40001';
   end if;
 
-  -- レシピIDは複合外部キーで同じspaceのレシピに限られる
-  insert into public.meal_sets (weekly_plan_id, couple_space_id, position, main_recipe_id, side_recipe_id, soup_recipe_id)
-  select p_plan_id,
-         v_plan.couple_space_id,
-         s.ordinality::smallint,
-         (s.value ->> 'main_recipe_id')::uuid,
-         nullif(s.value ->> 'side_recipe_id', '')::uuid,
-         nullif(s.value ->> 'soup_recipe_id', '')::uuid
-  from jsonb_array_elements(p_sets) with ordinality as s;
+  select r.id into v_run from public.recommendation_runs as r
+  where r.weekly_plan_id = p_plan_id order by r.generated_at desc, r.id desc limit 1;
+  select count(*) into v_count from public.recommendation_candidates as c where c.run_id = v_run and c.decision = 'ACCEPTED';
+  if v_count <> 5 then
+    raise exception 'exactly 5 main dishes must be accepted (now %)', v_count using errcode = '22023';
+  end if;
+
+  insert into public.meal_sets (weekly_plan_id, couple_space_id, position, main_recipe_id)
+  select p_plan_id, v_plan.couple_space_id, row_number() over (order by c.decided_at, c.position)::smallint, c.recipe_id
+  from public.recommendation_candidates as c
+  where c.run_id = v_run and c.decision = 'ACCEPTED';
 
   update public.weekly_plans as p
   set status = 'CONFIRMED', confirmed_at = now(), confirmed_by = auth.uid(), version = p.version + 1
   where p.id = p_plan_id;
   return v_plan.version + 1;
-exception
-  when invalid_text_representation or datatype_mismatch then
-    raise exception 'invalid meal sets' using errcode = '22023';
-  when foreign_key_violation then
-    raise exception 'recipe not found in this couple space' using errcode = '23503';
-  when unique_violation then
-    raise exception 'the same main dish is chosen twice' using errcode = '22023';
 end;
 $$;
 
 revoke all on function public.ensure_weekly_plan(date) from public, anon;
 revoke all on function public.save_recommendation_run(uuid, text, jsonb, jsonb, jsonb) from public, anon;
-revoke all on function public.confirm_weekly_plan(uuid, integer, jsonb) from public, anon;
+revoke all on function public.confirm_weekly_plan(uuid, integer) from public, anon;
+revoke all on function public.decide_candidate(uuid, text) from public, anon;
+grant execute on function public.decide_candidate(uuid, text) to authenticated;
 revoke all on function public.add_manual_candidate(uuid, uuid) from public, anon;
 grant execute on function public.add_manual_candidate(uuid, uuid) to authenticated;
 grant execute on function public.ensure_weekly_plan(date) to authenticated;
 grant execute on function public.save_recommendation_run(uuid, text, jsonb, jsonb, jsonb) to authenticated;
-grant execute on function public.confirm_weekly_plan(uuid, integer, jsonb) to authenticated;
+grant execute on function public.confirm_weekly_plan(uuid, integer) to authenticated;
 
 -- 2人の画面へ変更を届ける（Realtime。RLSで購読者を制限する）
 alter publication supabase_realtime add table public.weekly_plans, public.recommendation_candidates, public.meal_sets;

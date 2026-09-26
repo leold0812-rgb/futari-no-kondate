@@ -11,7 +11,6 @@ import {
   decideCandidate,
   generateCandidates,
   getWeeklyPlan,
-  MAIN_DISHES_PER_WEEK,
   PlanConflictError,
   type Decision,
 } from "@/lib/services/weekly-plan";
@@ -49,20 +48,21 @@ export async function regenerateCandidatesAction(planId: string, week: string): 
 }
 
 export async function decideAction(candidateId: string, decision: Decision): Promise<{ error?: string }> {
-  const member = await requireMember();
+  await requireMember();
   if (!UUID_PATTERN.test(candidateId) || !DECISIONS.includes(decision)) return { error: "判断を保存できませんでした。" };
   try {
-    await decideCandidate(await createSupabaseServerClient(), member.userId, candidateId, decision);
-  } catch {
+    await decideCandidate(await createSupabaseServerClient(), candidateId, decision);
+  } catch (error) {
+    if (error instanceof PlanConflictError) return { error: error.message };
     return { error: "判断を保存できませんでした。通信状態を確認して、もう一度お試しください。" };
   }
   return {};
 }
 
 export async function removeAcceptedAction(candidateId: string, week: string): Promise<void> {
-  const member = await requireMember();
+  await requireMember();
   if (!UUID_PATTERN.test(candidateId)) return;
-  await decideCandidate(await createSupabaseServerClient(), member.userId, candidateId, "SKIPPED");
+  await decideCandidate(await createSupabaseServerClient(), candidateId, "SKIPPED").catch(() => undefined);
   revalidatePath("/plan/confirm");
   redirect(`/plan/confirm?week=${resolvePlanWeek(week)}`);
 }
@@ -79,21 +79,10 @@ export type ConfirmState = { error?: string };
 export async function confirmPlanAction(planId: string, week: string, _previous: ConfirmState, formData: FormData): Promise<ConfirmState> {
   await requireMember();
   if (!UUID_PATTERN.test(planId)) return { error: "計画が見つかりません。" };
-  const supabase = await createSupabaseServerClient();
-  const plan = await getWeeklyPlan(supabase, planId);
-  if (!plan) return { error: "計画が見つかりません。" };
   const expectedVersion = Number(formData.get("version"));
-  const accepted = plan.candidates.filter((c) => c.decision === "ACCEPTED");
-  if (plan.status === "DRAFT" && accepted.length !== MAIN_DISHES_PER_WEEK) {
-    return { error: `主菜はちょうど${MAIN_DISHES_PER_WEEK}品にしてください（いま${accepted.length}品）。まだ確定していません。` };
-  }
+  if (!Number.isInteger(expectedVersion)) return { error: "画面を開き直してから、もう一度お試しください。" };
   try {
-    await confirmWeeklyPlan(
-      supabase,
-      planId,
-      expectedVersion,
-      accepted.map((c) => ({ mainRecipeId: c.recipeId, sideRecipeId: null, soupRecipeId: null })),
-    );
+    await confirmWeeklyPlan(await createSupabaseServerClient(), planId, expectedVersion);
   } catch (error) {
     if (error instanceof PlanConflictError) return { error: error.message };
     return { error: "献立を確定できませんでした。通信状態を確認して、もう一度お試しください（まだ確定していません）。" };

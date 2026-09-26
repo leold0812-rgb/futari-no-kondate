@@ -152,6 +152,8 @@ describe("10候補の選択", () => {
     expect(new Set(result.candidates.map((c) => c.recipeId)).size).toBe(3);
     expect(result.notes.join()).toContain("10品に足りません");
     expect(result.notes.join()).toContain("材料費が高め");
+    // 緩和して選んだ理由は候補の内訳（breakdown）にも残る
+    expect(result.candidates.some((c) => c.breakdown.some((b) => b.label.includes("材料費が高めの料理を2品目")))).toBe(true);
     expect(recommendWeekly([], context)).toMatchObject({ candidates: [], notes: [expect.stringContaining("0品")] });
   });
 });

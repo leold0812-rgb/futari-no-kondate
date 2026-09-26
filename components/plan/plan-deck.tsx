@@ -29,6 +29,8 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
   const [history, setHistory] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dragX, setDragX] = useState(0);
+  // 保存中は次の判断・1つ戻るを受け付けない（保存の競合と、失敗時の巻き戻しが後の操作を上書きするのを防ぐ）
+  const [saving, setSaving] = useState(false);
   const dragStart = useRef<number | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +43,8 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
   }, [current?.id]);
 
   async function decide(candidate: CandidateView, decision: Decision) {
+    if (saving) return;
+    setSaving(true);
     setError(null);
     setDecisions((d) => ({ ...d, [candidate.id]: decision }));
     setHistory((h) => [...h, candidate.id]);
@@ -51,11 +55,13 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
       setHistory((h) => h.filter((id) => id !== candidate.id));
       setError(`${result.error}（「${candidate.name}」の判断は保存されていません）`);
     }
+    setSaving(false);
   }
 
   async function undo() {
     const last = history.at(-1);
-    if (!last) return;
+    if (!last || saving) return;
+    setSaving(true);
     const previous = decisions[last];
     setError(null);
     setHistory((h) => h.slice(0, -1));
@@ -66,6 +72,7 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
       setHistory((h) => [...h, last]);
       setError(`${result.error}（元に戻せませんでした）`);
     }
+    setSaving(false);
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -93,8 +100,12 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
 
   return (
     <div className={styles.deck}>
-      <p className={styles.progress} aria-live="polite">
+      <p className={styles.progress}>
         作る：<strong>{acceptedCount}</strong> / {target}品　残りの候補：{remaining}
+      </p>
+      {/* 読み上げ：カードが切り替わったら次の候補名と進み具合を伝える */}
+      <p className="visually-hidden" aria-live="polite">
+        {current ? `次の候補：${current.name}。作る ${acceptedCount} / ${target}品` : `作る ${acceptedCount} / ${target}品`}
       </p>
 
       {error ? <Alert tone="error">{error}</Alert> : null}
@@ -170,16 +181,16 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
 
       {current ? (
         <div className={styles.buttons}>
-          <button type="button" className={`${buttonClassName({ variant: "secondary", size: "large" })} ${styles.skip}`} onClick={() => void decide(current, "SKIPPED")}>
+          <button type="button" className={`${buttonClassName({ variant: "secondary", size: "large" })} ${styles.skip}`} onClick={() => void decide(current, "SKIPPED")} disabled={saving}>
             ← スキップ
           </button>
-          <button type="button" className={buttonClassName({ size: "large" })} onClick={() => void decide(current, "ACCEPTED")}>
+          <button type="button" className={buttonClassName({ size: "large" })} onClick={() => void decide(current, "ACCEPTED")} disabled={saving}>
             作る →
           </button>
         </div>
       ) : null}
       <div className={styles.subActions}>
-        <button type="button" className={buttonClassName({ variant: "ghost", size: "small" })} onClick={() => void undo()} disabled={history.length === 0}>
+        <button type="button" className={buttonClassName({ variant: "ghost", size: "small" })} onClick={() => void undo()} disabled={history.length === 0 || saving}>
           ↶ 1つ戻る
         </button>
         <Link href={`/plan/add?week=${week}`} className={buttonClassName({ variant: "ghost", size: "small" })}>

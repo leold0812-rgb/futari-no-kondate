@@ -8,6 +8,9 @@ import { signImagePaths } from "./recipes";
 
 export const MAIN_DISHES_PER_WEEK = 5;
 
+/** 相手の操作と競合した（確定済み・候補の出し直し・版の違い） */
+export class PlanConflictError extends Error {}
+
 export type PlanStatus = "DRAFT" | "CONFIRMED" | "COMPLETED";
 export type Decision = "PENDING" | "ACCEPTED" | "SKIPPED";
 
@@ -218,20 +221,12 @@ export async function generateCandidates(supabase: SupabaseClient, planId: strin
   return data as string;
 }
 
-export async function decideCandidate(
-  supabase: SupabaseClient,
-  userId: string,
-  candidateId: string,
-  decision: Decision,
-): Promise<void> {
-  const { error } = await supabase
-    .from("recommendation_candidates")
-    .update({
-      decision,
-      decided_at: decision === "PENDING" ? null : new Date().toISOString(),
-      decided_by: decision === "PENDING" ? null : userId,
-    })
-    .eq("id", candidateId);
+/** 判断を保存する（DB関数が計画をロックし、DRAFT・最新の候補であることを確かめて版を進める） */
+export async function decideCandidate(supabase: SupabaseClient, candidateId: string, decision: Decision): Promise<void> {
+  const { error } = await supabase.rpc("decide_candidate", { p_candidate_id: candidateId, p_decision: decision });
+  if (error?.code === "55000" || error?.code === "40001") {
+    throw new PlanConflictError("献立がすでに決定されたか、候補が出し直されています。画面を開き直してください。");
+  }
   if (error) throw new Error(`判断を保存できませんでした: ${error.message}`);
 }
 
@@ -240,21 +235,14 @@ export async function addManualCandidate(supabase: SupabaseClient, runId: string
   if (error) throw new Error(`候補に追加できませんでした: ${error.message}`);
 }
 
-export class PlanConflictError extends Error {}
-
-export async function confirmWeeklyPlan(
-  supabase: SupabaseClient,
-  planId: string,
-  expectedVersion: number,
-  sets: { mainRecipeId: string; sideRecipeId: string | null; soupRecipeId: string | null }[],
-): Promise<number> {
-  const { data, error } = await supabase.rpc("confirm_weekly_plan", {
-    p_plan_id: planId,
-    p_expected_version: expectedVersion,
-    p_sets: sets.map((s) => ({ main_recipe_id: s.mainRecipeId, side_recipe_id: s.sideRecipeId, soup_recipe_id: s.soupRecipeId })),
-  });
-  if (error?.code === "40001" || error?.code === "55000") {
-    throw new PlanConflictError("相手が先に献立を変更・確定しました。画面を開き直して確認してください。");
+/** 最新の候補で「作る」を選んだ5品で確定する（DB側で5品ちょうど・採用済みの候補だけを使う） */
+export async function confirmWeeklyPlan(supabase: SupabaseClient, planId: string, expectedVersion: number): Promise<number> {
+  const { data, error } = await supabase.rpc("confirm_weekly_plan", { p_plan_id: planId, p_expected_version: expectedVersion });
+  if (error?.code === "40001") {
+    throw new PlanConflictError("相手が同時に候補を選び直しました。画面を開き直して、5品を確認してから決めてください。");
+  }
+  if (error?.code === "22023") {
+    throw new PlanConflictError(`主菜はちょうど${MAIN_DISHES_PER_WEEK}品にしてください。まだ確定していません。`);
   }
   if (error) throw new Error(`献立を確定できませんでした: ${error.message}`);
   return data as number;

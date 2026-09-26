@@ -157,6 +157,8 @@ export function recommendWeekly(recipes: RecommendationRecipe[], context: Recomm
   }
 
   function add(s: Scored, note?: string) {
+    // 選定理由（未調理の枠・条件の緩和）は内訳にも0点の項目として残す（仕様：選定理由のbreakdownを保存）
+    if (note) s = { ...s, items: [...s.items, { label: note, points: 0 }] };
     selected.push(s);
     selectedIds.add(s.recipe.id);
     if (note) selectedNotes.set(s.recipe.id, [...(selectedNotes.get(s.recipe.id) ?? []), note]);
