@@ -14,11 +14,13 @@
 
 ## Gate 1: 認証・共有境界
 
-1. CoupleSpace / profile migrationと2人上限制約
-2. RLS policyとpolicy test
-3. ユーザー選択＋パスコード画面
-4. session・ログアウト・rate limit
-5. 個人/共有のアクセス統合テスト
+1. [CoupleSpace / profiles migrationとRLS](tasks/phase-1-1-couplespace-rls.md)
+2. PIN認証後にSupabase Auth sessionを作る方式のDevelopment-only spike
+3. 固定2 Auth accountsのbootstrap（新規登録なし）
+4. PINのserver-side検証、永続rate limit、Supabase Auth session発行
+5. ユーザー選択＋PIN画面
+6. `proxy.ts`によるsession更新、保護route、ログアウト
+7. 個人/共有アクセスの統合テスト
 
 完了条件：2人だけが共有領域へ入り、別空間と相手の個人データを読めない。
 
