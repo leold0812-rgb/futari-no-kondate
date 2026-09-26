@@ -18,6 +18,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 const url = process.env.SPIKE_SUPABASE_URL ?? "";
 const anonKey = process.env.SPIKE_ANON_KEY ?? "";
 const serviceKey = process.env.SPIKE_SERVICE_ROLE_KEY ?? "";
+// ローカルSupabaseの [auth.email] enable_signup（= メールプロバイダーの有効/無効）。CIでは両方の設定で実行する
+const emailProviderEnabled = process.env.SPIKE_EMAIL_PROVIDER === "enabled";
 
 const NO_SESSION_PERSISTENCE = { auth: { autoRefreshToken: false, persistSession: false } } as const;
 
@@ -125,6 +127,9 @@ describe("サーバーだけがsessionを発行できる（generateLink + verify
     expect(verified.data.session?.refresh_token).toBeTruthy();
     expect(verified.data.user?.id).toBe(userA.userId);
     expect(verificationType).toBeTruthy();
+    console.info(
+      `[spike] verification_type=${verificationType}, expires_in=${verified.data.session?.expires_in}s, cookies=${[...jar.keys()].join(",")}`,
+    );
     // Supabase SSRのcookie（sb-<ref>-auth-token。大きい場合は .0 .1 に分割）
     expect([...jar.keys()].some((name) => /^sb-.+-auth-token(\.\d+)?$/.test(name))).toBe(true);
 
@@ -202,6 +207,8 @@ describe("サーバーだけがsessionを発行できる（generateLink + verify
         const { data, error } = await browser().auth.signInWithPassword({ email: userA.email, password: guess });
         expect(error).not.toBeNull();
         expect(data.session).toBeNull();
+        // プロバイダー有効時は「資格情報が不正」（=アカウントにパスワードが無い）で拒否されることまで確認する
+        expect(error?.code).toBe(emailProviderEnabled ? "invalid_credentials" : "email_provider_disabled");
       }
     });
 
@@ -212,6 +219,7 @@ describe("サーバーだけがsessionを発行できる（generateLink + verify
       });
       expect(error).not.toBeNull();
       expect(data.session).toBeNull();
+      expect(error?.code).toBe(emailProviderEnabled ? "signup_disabled" : "email_provider_disabled");
     });
 
     it("c. ログインメールの送信を要求されても、sessionは得られない（結果は記録）", async () => {
@@ -220,8 +228,12 @@ describe("サーバーだけがsessionを発行できる（generateLink + verify
         options: { shouldCreateUser: false },
       });
       // メール送信の成否は環境依存（ローカルはMailpit）。どちらでもsessionは返らないことを確認する
-      console.info(`[spike] signInWithOtp by anon: ${error ? `error(${error.status}, ${error.code})` : "accepted (email queued)"}`);
+      console.info(
+        `[spike] emailProvider=${emailProviderEnabled ? "enabled" : "disabled"} signInWithOtp by anon: ${error ? `error(${error.status}, ${error.code})` : "accepted (email queued)"}`,
+      );
       expect(data.session).toBeNull();
+      // プロバイダーを無効にすると、匿名からのログインメール送信要求そのものが拒否される
+      if (!emailProviderEnabled) expect(error?.code).toBe("email_provider_disabled");
     });
 
     it("d. 推測した6桁OTP・任意のtoken_hashではsessionを得られない", async () => {
@@ -236,6 +248,7 @@ describe("サーバーだけがsessionを発行できる（generateLink + verify
 
     it("e. anon keyではAdmin API（generateLink / createUser）を呼べない", async () => {
       const link = await browser().auth.admin.generateLink({ type: "magiclink", email: userA.email });
+      console.info(`[spike] anon admin.generateLink: status=${link.error?.status} code=${link.error?.code}`);
       expect(link.error).not.toBeNull();
       expect(link.data.properties).toBeNull();
 
