@@ -147,7 +147,7 @@ migration: `supabase/migrations/20261002090000_create_weekly_plans.sql`。テス
 - `recommendation_runs`（`algorithm_version`、入力の要約、緩和理由の`notes`）と `recommendation_candidates`（順位・点数・内訳・`manual`・`decision` `PENDING`/`ACCEPTED`/`SKIPPED`）
 - `meal_sets`（1主菜＝1献立セット：主菜・副菜・汁物・人数・`PLANNED`/`COOKED`・`version`）。設計案の`weekly_main_dishes`は`meal_sets`に統合
 - `recipe_histories`（作った記録。推薦の「未調理」「最近作った」。書き込みはGate 7）
-- 利用者の直接の書き込みは候補の判断欄（`decision`・`decided_at`・`decided_by`）だけ。それ以外は関数（`SECURITY DEFINER`、関数内で自分のspaceかを確認）：`ensure_weekly_plan`、`save_recommendation_run`（DRAFTのみ）、`add_manual_candidate`（もう作らない料理も手動なら可）、`confirm_weekly_plan`（楽観ロック、同じ内容の再送は成功扱い）
+- 利用者は読むだけ。書き込みは関数（`SECURITY DEFINER`、関数内で自分のspaceかを確認）：`ensure_weekly_plan`、`save_recommendation_run`（DRAFTのみ、版を進める）、`decide_candidate`（計画行をロックし、DRAFT・最新runの候補だけ。版を進める）、`add_manual_candidate`（もう作らない料理も手動なら可）、`confirm_weekly_plan(plan, version)`（最新runで採用済みの候補がちょうど5品のときだけ、判断順に献立セットを作る。楽観ロック、確定済みへの再送は成功扱い）
 - Realtime：`weekly_plans`・`recommendation_candidates`・`meal_sets`（Gate 4で`inventory_items`も）
 
 ## 後続で必要になる設計事項
