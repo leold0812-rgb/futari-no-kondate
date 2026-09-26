@@ -70,6 +70,8 @@ CIは`.github/workflows/ci.yml`のとおり、Supabase/OpenAI/Vercel/Blobのsecr
 
 ## 7. 初期設定チェックリスト
 
+2026-09-26に最終項目（継続ルール）を除き確認済み。記録は`docs/handoff.md`のGate 0-5「実環境の設定」を参照。環境を作り直す場合はこのリストを再利用する。
+
 - [ ] Supabase Development projectを作成し、Productionと別のproject refであることを確認
 - [ ] Supabase Production projectを作成し、Developmentと別のAPI key / DB / Storageであることを確認
 - [ ] Vercel projectのProduction Branchが`main`、Node.js Versionが`24.x`
