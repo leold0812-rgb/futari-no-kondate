@@ -135,3 +135,19 @@ describe("一覧の並べ替えと検索語", () => {
     expect(sanitizeSearchTerm('name.eq."x"')).toBe("name eq x");
   });
 });
+
+describe("画像の実データ検査", () => {
+  it("先頭の署名から形式を判定し、申告と違えば拒否する", async () => {
+    const { sniffImageType, verifyImageContent } = await import("@/lib/services/recipe-images");
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
+    const jpeg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0]);
+    const webp = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50]);
+    expect(sniffImageType(png)).toBe("image/png");
+    expect(sniffImageType(jpeg)).toBe("image/jpeg");
+    expect(sniffImageType(webp)).toBe("image/webp");
+    expect(sniffImageType(new TextEncoder().encode("<svg>"))).toBeNull();
+    expect(await verifyImageContent(new Blob([jpeg], { type: "image/jpeg" }))).toBeNull();
+    expect(await verifyImageContent(new Blob([new TextEncoder().encode("<html>")], { type: "image/jpeg" }))).not.toBeNull();
+    expect(await verifyImageContent(new Blob([png], { type: "image/jpeg" }))).not.toBeNull();
+  });
+});

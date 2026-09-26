@@ -329,6 +329,11 @@ begin
   end loop;
 
   return v_id;
+exception
+  -- JSONの型が合わない直接呼び出し（数値欄に文字列など）は、入力エラーとして一貫したSQLSTATEで返す
+  when invalid_text_representation or numeric_value_out_of_range or datatype_mismatch
+    or invalid_parameter_value or string_data_right_truncation then
+    raise exception 'invalid recipe input' using errcode = '22023';
 end;
 $$;
 

@@ -5,14 +5,16 @@ import { redirect } from "next/navigation";
 import type { RecipeFormState } from "@/components/recipes/recipe-form";
 import { requireMember } from "@/lib/auth/session";
 import { RATINGS, type Rating } from "@/lib/recipes/constants";
-import { removeRecipeImage, uploadRecipeImage, validateImageFile } from "@/lib/services/recipe-images";
+import { removeRecipeImage, uploadRecipeImage, validateImageFile, verifyImageContent } from "@/lib/services/recipe-images";
 import { saveRecipe, setFavorite, setRating, softDeleteRecipe } from "@/lib/services/recipes";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { describeIssues, recipeInputSchema, type RecipeInput } from "@/lib/validation/recipe";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function parseForm(formData: FormData): { input: RecipeInput; image: File | null; removeImage: boolean } | { errors: string[] } {
+async function parseForm(
+  formData: FormData,
+): Promise<{ input: RecipeInput; image: File | null; removeImage: boolean } | { errors: string[] }> {
   let raw: unknown;
   try {
     raw = JSON.parse(String(formData.get("payload") ?? ""));
@@ -25,7 +27,7 @@ function parseForm(formData: FormData): { input: RecipeInput; image: File | null
   const imageEntry = formData.get("image");
   const image = imageEntry instanceof File && imageEntry.size > 0 ? imageEntry : null;
   if (image) {
-    const problem = validateImageFile(image);
+    const problem = validateImageFile(image) ?? (await verifyImageContent(image));
     if (problem) return { errors: [problem] };
   }
   return { input: parsed.data, image, removeImage: formData.get("removeImage") === "1" };
@@ -33,7 +35,7 @@ function parseForm(formData: FormData): { input: RecipeInput; image: File | null
 
 export async function createRecipeAction(_previous: RecipeFormState, formData: FormData): Promise<RecipeFormState> {
   const member = await requireMember();
-  const parsed = parseForm(formData);
+  const parsed = await parseForm(formData);
   if ("errors" in parsed) return { errors: parsed.errors };
 
   const supabase = await createSupabaseServerClient();
@@ -68,7 +70,7 @@ export async function updateRecipeAction(
 ): Promise<RecipeFormState> {
   const member = await requireMember();
   if (!UUID_PATTERN.test(recipeId)) return { errors: ["対象のレシピが見つかりません。"] };
-  const parsed = parseForm(formData);
+  const parsed = await parseForm(formData);
   if ("errors" in parsed) return { errors: parsed.errors };
 
   const supabase = await createSupabaseServerClient();

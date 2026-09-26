@@ -8,11 +8,28 @@ export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export class RecipeImageError extends Error {}
 
-/** 画像ファイルの検証（種類・大きさ）。問題があれば日本語の理由を返す */
+/** 画像ファイルの検証（申告された種類・大きさ）。問題があれば日本語の理由を返す */
 export function validateImageFile(file: File): string | null {
   if (!ALLOWED_TYPES[file.type]) return "写真はJPEG・PNG・WebPのいずれかを選んでください。";
   if (file.size === 0) return "写真のファイルが空です。別の写真を選んでください。";
   if (file.size > MAX_IMAGE_BYTES) return "写真が大きすぎます（5MBまで）。";
+  return null;
+}
+
+/** ファイル先頭の署名（マジックナンバー）から実際の画像形式を判定する。対応外ならnull */
+export function sniffImageType(bytes: Uint8Array): string | null {
+  const startsWith = (signature: number[], offset = 0) => signature.every((b, i) => bytes[offset + i] === b);
+  if (startsWith([0xff, 0xd8, 0xff])) return "image/jpeg";
+  if (startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";
+  if (startsWith([0x52, 0x49, 0x46, 0x46]) && startsWith([0x57, 0x45, 0x42, 0x50], 8)) return "image/webp";
+  return null;
+}
+
+/** 申告された種類と実データの形式が一致するか（Server Actionへ直接送られた偽装ファイルを拒否する） */
+export async function verifyImageContent(file: Blob & { type: string }): Promise<string | null> {
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const actual = sniffImageType(head);
+  if (!actual || actual !== file.type) return "写真として読み込めないファイルです。別の写真を選んでください。";
   return null;
 }
 
@@ -26,7 +43,7 @@ export async function uploadRecipeImage(
   recipeId: string,
   file: File,
 ): Promise<string> {
-  const problem = validateImageFile(file);
+  const problem = validateImageFile(file) ?? (await verifyImageContent(file));
   if (problem) throw new RecipeImageError(problem);
   const path = `${coupleSpaceId}/${recipeId}/${randomUUID()}.${ALLOWED_TYPES[file.type]}`;
   const { error } = await supabase.storage

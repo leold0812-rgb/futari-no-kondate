@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useTransition } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 import { RATING_LABELS, RATINGS, type Rating } from "@/lib/recipes/constants";
 import styles from "./preference-controls.module.css";
 
@@ -19,19 +19,25 @@ export function PreferenceControls(props: Props) {
   const [pending, startTransition] = useTransition();
   const [rating, setOptimisticRating] = useOptimistic(props.myRating);
   const [favorite, setOptimisticFavorite] = useOptimistic(props.myFavorite);
+  const [error, setError] = useState<string | null>(null);
 
+  // 失敗したら楽観表示は元に戻り、理由と再試行の方法を示す
   function chooseRating(next: Rating) {
     const value = rating === next ? null : next;
+    setError(null);
     startTransition(async () => {
       setOptimisticRating(value);
-      await props.setRatingAction(props.recipeId, value);
+      const result = await props.setRatingAction(props.recipeId, value);
+      if (result?.error) setError(`${result.error}（評価は変わっていません）`);
     });
   }
 
   function toggleFavorite() {
+    setError(null);
     startTransition(async () => {
       setOptimisticFavorite(!favorite);
-      await props.setFavoriteAction(props.recipeId, !favorite);
+      const result = await props.setFavoriteAction(props.recipeId, !favorite);
+      if (result?.error) setError(`${result.error}（お気に入りは変わっていません）`);
     });
   }
 
@@ -62,6 +68,9 @@ export function PreferenceControls(props: Props) {
           </p>
         ) : null}
       </div>
+      <p className={styles.error} role="status" aria-live="polite">
+        {error}
+      </p>
     </div>
   );
 }

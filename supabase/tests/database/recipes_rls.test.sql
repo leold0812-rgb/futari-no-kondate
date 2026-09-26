@@ -4,7 +4,7 @@
 
 begin;
 
-select plan(31);
+select plan(32);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -46,6 +46,12 @@ select 'recipe-a', public.save_recipe(
 );
 
 select is((select count(*)::int from public.recipes), 1, 'Aは自分のspaceのレシピを保存して読める');
+select throws_ok(
+  $$select public.save_recipe(null, '{"name":"x","servings":"たくさん"}', '[]')$$,
+  '22023',
+  null,
+  '型の合わない入力は22023（入力エラー）で拒否する'
+);
 select is((select count(*)::int from public.recipe_ingredients), 2, '材料行が2件保存される');
 select is((select count(*)::int from public.ingredients), 2, '材料マスタに2件作られる');
 select is(
