@@ -8,7 +8,7 @@
 2. PWA manifest・アイコン・モバイルshell（空の5タブ）
 3. Supabase browser/server clientと環境変数schema
 4. CI（lint、typecheck、test、build）
-5. Development / Production設定手順
+5. Development / Production設定手順（[環境設定手順](development-environments.md)）
 
 完了条件：秘密値なしでローカル起動・buildでき、環境不足時に安全に失敗する。
 

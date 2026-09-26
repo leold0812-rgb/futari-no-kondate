@@ -82,10 +82,17 @@
 
 UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ画面から呼ばれていないため、現時点のclient bundleには含まれない。
 
+### Gate 0-5: Development / Production設定手順
+
+- `docs/development-environments.md`を作成。VercelのDevelopment / Preview / ProductionとSupabase Development / Productionを分離する対応表、ローカル設定、CI、漏えい時の対応を記載
+- 今の段階では使わないservice role / OpenAI / Cron / Blobの秘密値を登録しない方針を明記
+- READMEとアーキテクチャの環境分離表現をVercel環境の実態に合わせて更新
+- 公式文書で確認した運用条件を追記：Vercel Node.js 24.x、Git Fork Protection維持（public repoのため）、Sensitive変数はProduction/Previewのみ作成可、Supabase Free planの無料project上限2（Dev＋Prodで上限）
+
 ## 未完了
 
-- Development / Production設定手順（Gate 0-5）
-- Supabase / Vercel / OpenAI / Blobのproject作成・接続
+- Supabase / Vercel projectの実作成・環境変数登録（手順書に沿って設定）
+- OpenAI / Vercel Blobのproject/store作成と接続（各機能を実装するGateで設定）
 - 全Gateの業務機能
 
 ## 既知の問題・要確認
@@ -115,6 +122,12 @@ Gate 0-3での追加・変更なし。Gate 0-1で`.env.example`を新規作成�
 
 ## テスト結果
 
+### Gate 0-5
+
+- 公式Vercel/Supabase文書と照合し、環境対応表・ローカル手順・CI方針を文書レビュー（2026-09-26にVercel Sensitive env / Vercel for GitHub / Node.js versions、Supabase Billingを再確認）
+- Supabase Free planの非アクティブproject一時停止の条件は今回参照した文書に記載がなく未確認
+- コード変更なし。CI再実行なし
+
 ### Gate 0-4（2026-09-26）
 
 - `npm run check:bundle`：build後に成功。`.next/static`へ`OPENAI_API_KEY`を含む仮ファイルを置くとexit 1で失敗することを確認（仮ファイルは削除済み）
@@ -143,5 +156,5 @@ Gate 0-3での追加・変更なし。Gate 0-1で`.env.example`を新規作成�
 
 ## 次の推奨作業
 
-- Gate 0-5：Development / Production設定手順（Supabase・Vercel projectの分離、環境変数の登録先）をdocsへ
+- Gate 0-5の手順書に沿ってSupabase Development / Production projectを作成し、Vercel環境変数を登録する。
 - Gate 1で認証を入れる際に、Supabase session更新用の`proxy.ts`を追加する

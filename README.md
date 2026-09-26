@@ -15,15 +15,15 @@
 - iPhone向けPWA、モバイルファースト、日本語UIとする
 - AIはレシピURLの構造化に限定し、推薦は決定的なスコアリングで行う
 - 共有データと個人データをRow Level Security（RLS）で分離する
-- ProductionとDevelopmentはVercel・Supabaseともに別環境とする
+- VercelのDevelopment / Preview / Production環境とSupabase Development / Production projectを分ける
 
 ## 現在地
 
-設計フェーズです。アプリ実装はまだ開始していません。設計の入口は次の文書です。
+Gate 0-4まで完了し、Gate 0-5（環境分離の設定手順）を整備しました。設計と運用手順は次の文書にあります。
 
 - [プロダクト仕様](docs/product-spec.md)
 - [アーキテクチャ](docs/architecture.md)
 - [データベース](docs/database.md)
 - [実装計画](docs/development-plan.md)
 - [引き継ぎ](docs/handoff.md)
-
+- [開発・本番環境の設定手順](docs/development-environments.md)

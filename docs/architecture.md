@@ -57,11 +57,13 @@ Next.jsの認証セッションはcookieベースのSupabase SSR方式を採用�
 
 | 項目 | Development | Production |
 |---|---|---|
-| Vercel project | Preview/開発専用 | 本番専用 |
+| Vercel environment | Development / Preview | Production |
 | Supabase project | 開発専用 | 本番専用 |
 | Storage bucket | 開発専用 | 本番専用 |
 | Blob store | 開発専用 | 本番専用 |
 | OpenAI key / project | 開発用制限 | 本番用制限 |
+
+Vercelは1つのproject内で組み込みのDevelopment / Preview / Production環境を使う。Supabase projectはDevelopmentとProductionで分ける。VercelのPreviewはDevelopment用Supabaseへ接続する。
 
 本番データを開発へコピーしない。seedは架空データだけを使用する。
 
