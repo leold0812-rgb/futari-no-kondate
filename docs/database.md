@@ -12,8 +12,8 @@
 
 ### 認証・設定
 
-- `profiles`: `id = auth.users.id`, `display_name`, `couple_space_id`, `role`, `created_at`
-- `couple_spaces`: 共有領域。固定2名を上限とする制約はDB functionで検証
+- `couple_spaces`（確定・Gate 1.1）: 共有領域。`id`, `created_at`, `updated_at`。メンバー数は0〜2人
+- `profiles`（確定・Gate 1.1）: `id`（`auth.users.id`へのFK、削除はcascade）, `couple_space_id`（必須FK、`on delete restrict`）, `display_name`（1〜30文字、同一space内で重複不可）, `created_at`, `updated_at`。email・PIN・Auth metadataは持たない。`role`列は未追加（使う機能ができた時点で追加する）
 - `user_preferences`: `user_id`, ご飯量、表示設定
 - `shopping_category_orders`: `couple_space_id`, category, position
 
@@ -52,7 +52,7 @@
 
 ## RLS方針
 
-- `profiles`: 本人は自分を更新。同じCoupleSpaceの表示名は読めるが認証情報は持たない。
+- `profiles`（確定・Gate 1.1）: authenticatedは同じCoupleSpaceのprofileを最小列（`id`, `couple_space_id`, `display_name`）だけ読める。作成・更新・削除は一般ユーザーに許可しない（本人の表示名更新も現時点では不可）。認証情報は持たない。
 - 共有テーブル：`auth.uid()`のprofileと同じ`couple_space_id`だけselect/insert/update/delete可能。
 - `weight_records`: `user_id = auth.uid()`のみ。CoupleSpace一致による閲覧は絶対に許可しない。
 - `recipe_ratings` / `recipe_favorites`: 同じ空間内レシピを対象に、本人行だけ変更可能。表示上の集約は安全なview/functionを使う。
@@ -72,3 +72,29 @@
 - 「もう作らない」は本人の嗜好として保持し、候補生成では2人のどちらかが指定した料理を通常除外する。手動追加は許可する。
 - 画像バックアップ範囲はPhase 12でストレージ容量を測って確定する。
 
+## 確定済みschema: CoupleSpace / profiles（Gate 1.1）
+
+migration: `supabase/migrations/20260926180000_create_couple_spaces_and_profiles.sql`。テスト: `supabase/tests/database/couple_space_rls.test.sql`（pgTAP、`npm run db:test`）と`scripts/db/test-member-limit-concurrency.sh`（`npm run db:test:concurrency`）。
+
+### 2人上限
+
+`profiles`のBEFORE INSERT / UPDATE OF `couple_space_id` triggerが、対象`couple_spaces`行を`FOR UPDATE`でロックしてから同space内の他profile数を数え、2以上なら`check_violation`で拒否する。同じspaceへの同時追加は行ロックで直列化され、read committedでも後続transactionはcommit済みの先行分を含めて数え直す。ロック対象は1行だけで、deadlockしない。triggerは`private` schemaの`SECURITY DEFINER`関数（`search_path = ''`）で、一般ユーザーにはprofilesへの書き込み権限がないため管理者操作でのみ発火する。
+
+### 権限（誰が何をできるか）
+
+| role | couple_spaces | profiles |
+|---|---|---|
+| anon | 一切不可（table権限なし） | 一切不可（table権限なし） |
+| authenticated（所属あり） | 自分のspaceの`id`, `created_at`のみSELECT | 同じspaceのprofileの`id`, `couple_space_id`, `display_name`のみSELECT |
+| authenticated（未所属） | 0行 | 0行 |
+| 一般ユーザーの書き込み | INSERT / UPDATE / DELETE不可 | INSERT / UPDATE / DELETE不可（別spaceへの移動も不可） |
+| service role / postgres | 初期登録・移動などの管理者操作（bootstrap作業で使用） | 同左。2人上限は管理者操作にも適用される |
+
+- Supabaseの既定privilegesがanon / authenticatedへ付与する権限は、migrationで明示的にREVOKEしてから最小限だけGRANTしている。列単位のSELECTのため、`profiles`の`select *`はauthenticatedでは権限エラーになる（列を明示する）。
+- RLS policyは`couple_spaces_select_own_space`と`profiles_select_same_space`の2本（どちらもSELECT・authenticated）。書き込み用policyは作らない（grantsも無いため二重に拒否）。
+- 所属判定は`private.current_couple_space_id()`（`SECURITY DEFINER`、`search_path = ''`、EXECUTEはauthenticatedのみ）。`profiles`を直接再帰参照しない。`private` schemaはPostgRESTのexposed schemas（`supabase/config.toml`の`api.schemas`）に含めない。
+
+### 後続で必要になる設計事項
+
+- 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。
+- `profiles`のUPDATE（表示名変更）を許す場合は、列単位のGRANTとpolicyを別migrationで追加する。
