@@ -8,7 +8,8 @@
 --   * 制限:
 --       アカウント単位: 最後の成功以降の連続試行5回でロック。ロック時間は15分→30分→60分（上限60分）。成功でリセット。
 --       送信元単位: 1時間の固定windowで20回を超えたら1時間ロック（成功・対象外IDも数える）。送信元はIPのHMAC（生IPは保存しない）。
---   * 照合の対象はprofileとPIN登録のある利用者だけ。任意のIDで行を作らせない。1日以上前の送信元記録は自動で削除する。
+--   * 照合の対象はprofileとPIN登録のある利用者だけ。任意のIDで行を作らせない。1日以上前の送信元記録は、
+--     試行の最後に「他の処理がロック中の行は飛ばす」形で削除する（ロック順を崩さない）。
 --   * PINそのもの・IPアドレスは保存しない。
 
 -- ---------------------------------------------------------------------------
@@ -46,6 +47,32 @@ revoke all on table private.pin_credentials from public, anon, authenticated, se
 revoke all on table private.login_throttles from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
+-- 古い送信元記録の片付け（pin_login_beginの最後に呼ぶ）
+-- ---------------------------------------------------------------------------
+-- 1日以上前のwindowでロックも切れている送信元記録を削除し、行が溜まり続けないようにする。
+-- 他の処理がロック中の行は待たずに飛ばす（skip locked）ため、ロック順の逆転によるdeadlockは起きない。
+create function private.delete_stale_login_sources(p_current_source text)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from private.login_throttles as t
+  where (t.scope, t.subject) in (
+    select o.scope, o.subject
+    from private.login_throttles as o
+    where o.scope = 'source'
+      and o.subject <> p_current_source
+      and o.window_started_at < pg_catalog.now() - interval '1 day'
+      and (o.locked_until is null or o.locked_until < pg_catalog.now())
+    limit 200
+    for update skip locked
+  );
+$$;
+
+revoke all on function private.delete_stale_login_sources(text) from public, anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
 -- 試行の予約（検証前に呼ぶ）
 -- ---------------------------------------------------------------------------
 -- 戻り値:
@@ -69,12 +96,6 @@ begin
     raise exception 'invalid pin_login_begin arguments' using errcode = '22023';
   end if;
 
-  -- 1日以上前の送信元記録（ロック中を除く）を片付け、行が溜まり続けないようにする
-  delete from private.login_throttles as t
-  where t.scope = 'source'
-    and t.window_started_at < v_now - interval '1 day'
-    and (t.locked_until is null or t.locked_until < v_now);
-
   -- 照合の対象は「profileがありPINを登録済み」の利用者だけ。それ以外のIDではアカウント行を作らず、照合もさせない
   v_eligible := exists (
     select 1
@@ -94,19 +115,24 @@ begin
     for update;
   end if;
 
-  insert into private.login_throttles (scope, subject)
-  values ('source', p_source)
-  on conflict do nothing;
-  select * into strict v_source
-  from private.login_throttles as t
-  where t.scope = 'source' and t.subject = p_source
-  for update;
+  -- 送信元行は古い記録の片付け（他の処理）で消えることがあるため、取れるまで作り直す
+  loop
+    insert into private.login_throttles (scope, subject)
+    values ('source', p_source)
+    on conflict do nothing;
+    select * into v_source
+    from private.login_throttles as t
+    where t.scope = 'source' and t.subject = p_source
+    for update;
+    exit when found;
+  end loop;
 
   v_wait := greatest(
     coalesce(pg_catalog.ceil(extract(epoch from (v_account.locked_until - v_now)))::integer, 0),
     coalesce(pg_catalog.ceil(extract(epoch from (v_source.locked_until - v_now)))::integer, 0)
   );
   if v_wait > 0 then
+    perform private.delete_stale_login_sources(p_source);
     return query select false, v_wait, null::text;
     return;
   end if;
@@ -131,6 +157,7 @@ begin
   where t.scope = 'source' and t.subject = p_source;
 
   if not v_eligible then
+    perform private.delete_stale_login_sources(p_source);
     -- allowed = false かつ retry_after_seconds = 0 は「ログインの準備ができていない（PIN未設定など）」
     return query select false, 0, null::text;
     return;
@@ -154,6 +181,7 @@ begin
       updated_at = v_now
   where t.scope = 'account' and t.subject = p_user_id::text;
 
+  perform private.delete_stale_login_sources(p_source);
   return query
   select true, 0, (select c.pin_hash from private.pin_credentials as c where c.user_id = p_user_id);
 end;

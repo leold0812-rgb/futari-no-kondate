@@ -100,7 +100,7 @@ migration: `supabase/migrations/20260928090000_create_pin_auth.sql`。テスト:
 
 - `private.pin_credentials`（`user_id` PK→`auth.users` cascade、`pin_hash`は`scrypt$`形式のみ）と`private.login_throttles`（`scope`=`account`/`source`、`subject`、試行回数、window、`locked_until`、`lockout_count`）。どのroleにもテーブル権限を与えない（service_roleも関数経由のみ）。`private` schemaはAPIに公開しない。
 - 関数（`public`、`SECURITY DEFINER`、`search_path = ''`、EXECUTEはservice_roleのみ）:
-  - `pin_login_begin(user_id, source)`：ロック中なら`allowed=false`と残り秒数。profileとPIN登録のある利用者以外は`allowed=false`・待ち0（アカウント行を作らず、照合もしない）。そうでなければ試行を1回予約し`pin_hash`を返す。行ロックは常にaccount→sourceの順。1日以上前の送信元記録は呼び出しごとに削除
+  - `pin_login_begin(user_id, source)`：ロック中なら`allowed=false`と残り秒数。profileとPIN登録のある利用者以外は`allowed=false`・待ち0（アカウント行を作らず、照合もしない）。そうでなければ試行を1回予約し`pin_hash`を返す。行ロックは常にaccount→sourceの順。1日以上前の送信元記録は各呼び出しの最後に`private.delete_stale_login_sources`で削除（他の処理がロック中の行は`skip locked`で飛ばし、ロック順を崩さない）
   - `pin_login_succeeded(user_id)`：アカウントの連続試行・ロック段階をリセット
   - `pin_set(user_id, pin_hash)`：profileのあるユーザーだけ。登録・更新しアカウントのロックを解除
 - 制限：アカウントは最後の成功以降の連続5回で15分→30分→60分（上限）。送信元（IPのHMAC）は1時間の固定windowで20回（成功も数える）で1時間。

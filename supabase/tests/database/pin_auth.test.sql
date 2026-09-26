@@ -4,7 +4,7 @@
 
 begin;
 
-select plan(31);
+select plan(32);
 
 -- a1, a2: 同じspace（PINあり） / a3: profileなし / a4: profileあり・PIN未登録
 insert into auth.users (id) values
@@ -33,6 +33,7 @@ select ok(not has_function_privilege('authenticated', 'public.pin_set(uuid, text
 select ok(not has_function_privilege('authenticated', 'public.pin_login_succeeded(uuid)', 'execute'), 'authenticatedはpin_login_succeededを実行できない');
 select ok(has_function_privilege('service_role', 'public.pin_login_begin(uuid, text)', 'execute'), 'service_roleはpin_login_beginを実行できる');
 select ok(has_function_privilege('service_role', 'public.pin_set(uuid, text)', 'execute'), 'service_roleはpin_setを実行できる');
+select ok(not has_function_privilege('service_role', 'private.delete_stale_login_sources(text)', 'execute'), '片付け関数は直接実行できない（pin_login_begin内部のみ）');
 
 -- ---------------------------------------------------------------------------
 -- PINの設定
