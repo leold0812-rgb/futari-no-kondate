@@ -171,8 +171,26 @@ jobs:
             echo "SPIKE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-$SECRET_KEY}"
           } >> "$GITHUB_ENV"
 
-      - name: Session issuance integration test
+      - name: Session issuance and bootstrap integration tests
         run: npm run test:integration
+
+      - name: Bootstrap CLI end-to-end (local only)
+        # Gate 1.3のCLIをNode 24の型除去でそのまま実行する。dry-run → apply → 再実行で変更なし、の順に確認する
+        env:
+          BOOTSTRAP_MEMBER_1_EMAIL: member-1@futari-no-kondate.invalid
+          BOOTSTRAP_MEMBER_1_DISPLAY_NAME: CI太郎
+          BOOTSTRAP_MEMBER_2_EMAIL: member-2@futari-no-kondate.invalid
+          BOOTSTRAP_MEMBER_2_DISPLAY_NAME: CI花子
+        run: |
+          export NEXT_PUBLIC_SUPABASE_URL="$SPIKE_SUPABASE_URL" NEXT_PUBLIC_SUPABASE_ANON_KEY="$SPIKE_ANON_KEY" SUPABASE_SERVICE_ROLE_KEY="$SPIKE_SERVICE_ROLE_KEY"
+          node scripts/auth/bootstrap-couple.mts --project-ref local | tee "$RUNNER_TEMP/dry-run.log"
+          grep -q "dry-runのため変更していません" "$RUNNER_TEMP/dry-run.log"
+          node scripts/auth/bootstrap-couple.mts --project-ref local --apply
+          node scripts/auth/bootstrap-couple.mts --project-ref local --apply | tee "$RUNNER_TEMP/rerun.log"
+          grep -q "変更なし" "$RUNNER_TEMP/rerun.log"
+          if [ "$SPIKE_EMAIL_PROVIDER" = "disabled" ]; then
+            node scripts/auth/smoke-session.mts --project-ref local
+          fi
 
       - name: Show container logs on failure
         if: failure()

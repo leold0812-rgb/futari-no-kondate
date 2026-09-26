@@ -1,6 +1,8 @@
 # Handoff
 
-更新日: 2026-09-26（Gate 1.1追記）
+更新日: 2026-09-27（Gate 1.3追記）
+
+v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](tasks/app-v1-plan.md)
 
 ## PR #3 レビュー（2026-09-26）
 
@@ -36,7 +38,19 @@
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
-### Gate 1.1修正: 2人上限のtransaction分離レベル対応（今回）
+### Gate 1.3: 固定2人のAuthアカウントbootstrap
+
+- `scripts/auth/bootstrap-couple.mts`（CLI）/ `bootstrap-runner.mts`（Supabase入出力）/ `bootstrap-plan.mts`（純粋な計画）。Node 24の型除去でそのまま実行する（新規依存なし。`tsconfig.json`に`allowImportingTsExtensions`を追加）
+  - 既定はdry-run。`--apply`で書き込み、書き込み後に状態を読み直して「変更なし」になることを確認する
+  - `--project-ref`がURLのrefと一致しないと拒否（ローカルは`local`）。publishable / anon keyも拒否
+  - 設定にないAuthユーザーがいる・2人が別spaceにいる・空spaceが複数ある場合は何も変更せず停止。途中で止まった状態（ユーザーだけ作成済み、空spaceが1件残る等）からは収束する
+  - Authユーザーはパスワード無し・`email_confirm: true`。表示名・メールはGit管理外の`.env.bootstrap.local`から読む
+- `scripts/auth/smoke-session.mts`：hostedでサインアップ無効・Email provider無効・`generateLink`+`verifyOtp`・RLSを確認する（ADR 0001の未検証項目）
+- `scripts/lib/supabase-target.mts`：操作対象projectとキー種別の検査（以後の管理スクリプトで共用）
+- テスト：単体`tests/unit/bootstrap-plan.test.ts`、統合`tests/integration/auth-bootstrap.test.ts`（CIのローカルSupabase）、CIでCLIをdry-run→apply→再実行、Email provider無効matrixでスモーク
+- hosted Developmentへの適用は未実施（Supabase CLI未ログイン・資格情報をClaudeが扱わないため）。手順は[docs/runbooks/hosted-development-setup.md](runbooks/hosted-development-setup.md)
+
+### Gate 1.1修正: 2人上限のtransaction分離レベル対応
 
 - 新規migration `supabase/migrations/20260927090000_fix_member_limit_isolation.sql`：上限triggerの`FOR UPDATE`を、対象space行の`UPDATE`（`updated_at`更新）に置き換え。repeatable read / serializableでは競合を`could not serialize access`（40001）として検出する。仕組みは`docs/database.md`
 - `scripts/db/test-member-limit-concurrency.sh`：`read committed` / `repeatable read` / `serializable`の3シナリオ（後続接続が先行接続のcommit前にsnapshotを取りcommit後に追加を試みる形を含む）に拡張
@@ -235,9 +249,5 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 
 ## 次の推奨作業
 
-- 2人上限修正PRのCI確認・マージ
-- Gate 1.3：Authアカウント（固定2人）の開発環境bootstrap（新規登録なし）。ADR 0001の方針（パスワード無し・メールプロバイダー無効）に従う
-- hosted Developmentでの方式確認（Dev projectのAuth設定変更とsecret key利用が必要。ユーザー承認後）
-- Gate 1.1の差分レビュー（Codex）→ commit / PR
-- Gate 1.2：PIN認証後にSupabase Auth sessionを作る方式のDevelopment-only spike（`docs/development-plan.md`）。指示書で「次のGate 1.2作業（2 Auth accountsの開発環境bootstrap）」とされている場合は、`development-plan.md`の番号（1.2=spike、1.3=bootstrap）と作業指示書の呼び方を揃える
-- Gate 1で認証を入れる際に、Supabase session更新用の`proxy.ts`を追加する
+- `docs/tasks/app-v1-plan.md`のfeature listに従い、Gate 1.4（PIN検証・試行制限・session発行）から順に進める
+- ユーザー作業：[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)のA〜E

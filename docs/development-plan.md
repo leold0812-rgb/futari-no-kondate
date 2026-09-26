@@ -1,5 +1,7 @@
 # 開発計画
 
+v1実装の進捗と判断ログは[アプリv1 実装計画](tasks/app-v1-plan.md)にある。
+
 各作業は「migration → サーバー処理 → UI → テスト」のレビュー可能な単位に分け、完了ごとにCodexレビューと`docs/handoff.md`更新を行う。
 
 ## Gate 0: 土台
@@ -16,7 +18,7 @@
 
 1. [CoupleSpace / profiles migrationとRLS](tasks/phase-1-1-couplespace-rls.md)
 2. PIN認証後にSupabase Auth sessionを作る方式のDevelopment-only spike
-3. 固定2 Auth accountsのbootstrap（新規登録なし）
+3. 固定2 Auth accountsのbootstrap（新規登録なし）：`scripts/auth/bootstrap-couple.mts`、[hosted Development手順](runbooks/hosted-development-setup.md)
 4. PINのserver-side検証、永続rate limit、Supabase Auth session発行
 5. ユーザー選択＋PIN画面
 6. `proxy.ts`によるsession更新、保護route、ログアウト

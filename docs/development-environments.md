@@ -27,6 +27,7 @@ SupabaseのPreview Branch機能は当面使いません。独立したDevelopmen
    - Node.js Versionは`24.x`（Vercel既定）。`package.json`の`engines.node`（`>=24`）もVercel上では最新24.xへ解決され、CI（`.nvmrc`）と一致する。[Supported Node.js versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions)
    - Security設定の**Git Fork Protection**は有効（既定）のままにする。repositoryがpublicのため、forkからのPRは承認するまでdeployされず、環境変数が渡らない。[Deployment Authorizations for Forks](https://vercel.com/docs/git/vercel-for-github#deployment-authorizations-for-forks)
 4. VercelのProduction、Preview、Development環境変数を下表どおり設定する。
+5. Development projectへmigration適用・Auth設定・2人のアカウント登録を行う：[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)（ユーザーが実行）。
 
 SupabaseのFree planで作れる無料projectは2つまで（Owner/Admin権限を持つ全organization合計）で、Development＋Productionで上限に達する。検証用に3つ目を作らない。[Billing on Supabase](https://supabase.com/docs/guides/platform/billing-on-supabase)
 
