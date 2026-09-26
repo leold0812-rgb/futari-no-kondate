@@ -14,7 +14,8 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
-    "db:test:concurrency": "bash scripts/db/test-member-limit-concurrency.sh"
+    "db:test:concurrency": "bash scripts/db/test-member-limit-concurrency.sh",
+    "test:integration": "vitest run --config vitest.integration.config.mts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.7",

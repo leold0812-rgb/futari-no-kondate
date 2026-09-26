@@ -231,7 +231,9 @@ max_frequency = "1s"
 # Number of characters used in the email OTP.
 otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
-otp_expiry = 3600
+# 統合テスト（tests/integration）でトークン期限切れの拒否を短時間で確認するため、ローカルのみ20秒にしている。
+# hosted projectの値ではない（hostedはDashboardのAuth設定で管理し、既定は3600秒）
+otp_expiry = 20
 
 # Use a production-ready SMTP server
 # [auth.email.smtp]
