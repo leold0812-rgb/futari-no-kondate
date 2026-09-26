@@ -134,7 +134,9 @@ migration: `supabase/migrations/20261001090000_create_inventory.sql`。テスト
 - `inventory_items`（lot：材料・数量（0以上）・単位・購入日（日本時間）・`source_shopping_item_id`（Gate 6の購入済み、unique））。数量0になったlotは削除
 - `inventory_adjustments`（監査：変更前後の量・単位・理由 `MANUAL_ADD`/`MANUAL_EDIT`/`MANUAL_REMOVE`/`PURCHASE`/`PURCHASE_UNDO`/`COOKED`/`HOME_CHECK`・実行者）。更新・削除不可
 - `private.unit_base(unit)`：`lib/units`と同じ単位定義（単体テストで一致を確認）
-- 関数（`SECURITY INVOKER`、RLS適用）：`inventory_add`、`inventory_set_quantity`（0で削除）、`inventory_consume`（互換単位のlotだけ古い順に減らし、減らせなかった量を返す）。いずれも監査を同じtransactionで記録
+- 利用者は在庫表・監査表を読むだけ（直接の書き込み権限なし）。書き込みは内部関数 `private.inventory_add_lot` / `inventory_set_lot` / `inventory_consume`（`SECURITY DEFINER`、spaceを明示、監査を同じtransactionで記録）に集約
+- 利用者が呼べる入口は `inventory_add`（手入力、理由は`MANUAL_ADD`固定、未来日不可）と `inventory_set_quantity`（手動補正、0なら`MANUAL_REMOVE`）だけ。購入済み・作った・家にあるチェックはGate 6 / 7の処理関数だけが内部関数を呼ぶ（理由の偽装を防ぐ）
+- `inventory_consume`：互換単位のlotだけ古い順に減らし、lotの小数2桁への丸めで実際に減った量から残りを計算して、減らせなかった量を返す
 - 「そろそろ使いたい」は保存せず、購入日と材料の`storage_days`からアプリで算出（`lib/inventory/status.ts`：残りが保存目安の3割（最低1日）以下）
 
 ## 後続で必要になる設計事項

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { AddInventoryForm } from "@/components/inventory/add-inventory-form";
 import { InventoryEntryCard } from "@/components/inventory/inventory-entry";
 import styles from "@/components/inventory/inventory.module.css";
+import { Alert } from "@/components/ui/alert";
 import { LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,7 +15,16 @@ import { addInventoryAction } from "./actions";
 
 export const metadata: Metadata = { title: "在庫 | ふたりの献立" };
 
-export default async function InventoryPage() {
+const NOTICES: Record<string, { tone: "success" | "error"; text: string }> = {
+  updated: { tone: "success", text: "数量を直しました。" },
+  removed: { tone: "success", text: "在庫から消しました（記録は残っています）。" },
+  quantity: { tone: "error", text: "数量は0以上の数字で入力してください。まだ保存されていません。" },
+  save: { tone: "error", text: "保存できませんでした。通信状態を確認して、もう一度お試しください。" },
+};
+
+export default async function InventoryPage({ searchParams }: PageProps<"/inventory">) {
+  const params = await searchParams;
+  const notice = NOTICES[String(params.error ?? params.notice ?? "")];
   await requireMember();
   const supabase = await createSupabaseServerClient();
   const today = tokyoDate();
@@ -33,6 +43,8 @@ export default async function InventoryPage() {
           </LinkButton>
         }
       />
+
+      {notice ? <Alert tone={notice.tone}>{notice.text}</Alert> : null}
 
       <details className={styles.details} open={entries.length === 0}>
         <summary>在庫を手で追加する</summary>

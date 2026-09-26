@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import styles from "@/components/inventory/inventory.module.css";
+import { Alert } from "@/components/ui/alert";
 import { buttonClassName, LinkButton } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { controlClassName } from "@/components/ui/field";
@@ -13,7 +14,15 @@ import { updateIngredientAction } from "../actions";
 export const metadata: Metadata = { title: "材料の設定 | ふたりの献立" };
 
 /** 材料ごとのカテゴリ（買い物の並び順）と保存目安（そろそろ使いたいの計算）を直す */
-export default async function IngredientSettingsPage() {
+const NOTICES: Record<string, { tone: "success" | "error"; text: string }> = {
+  saved: { tone: "success", text: "保存しました。" },
+  "storage-days": { tone: "error", text: "保存目安は1〜365の整数で入力してください（空欄なら目安なし）。まだ保存されていません。" },
+  save: { tone: "error", text: "保存できませんでした。通信状態を確認して、もう一度お試しください。" },
+};
+
+export default async function IngredientSettingsPage({ searchParams }: PageProps<"/inventory/ingredients">) {
+  const params = await searchParams;
+  const notice = NOTICES[String(params.error ?? params.notice ?? "")];
   await requireMember();
   const ingredients = await listIngredients(await createSupabaseServerClient());
   return (
@@ -27,6 +36,7 @@ export default async function IngredientSettingsPage() {
           </LinkButton>
         }
       />
+      {notice ? <Alert tone={notice.tone}>{notice.text}</Alert> : null}
       {ingredients.length === 0 ? (
         <EmptyState title="材料はまだありません" description="レシピや在庫を登録すると、ここに材料が並びます。" />
       ) : (

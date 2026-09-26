@@ -5,6 +5,9 @@
 --   * 数量は0以上。互換単位（質量どうし・体積どうし・同じ個数単位）だけを換算して、古いlotから減算する。
 --     換算できない単位のlotは減らさず、減らせなかった量を呼び出し元へ返す（推測で混ぜない）。
 --   * 数量を変える操作はすべて監査（inventory_adjustments）へ、変更前後の量・理由・実行者を残す。同じtransactionで行う。
+--   * 利用者は在庫表・監査表を読むだけ。書き込みは private schema の内部関数（SECURITY DEFINER、spaceを明示）に集約し、
+--     利用者が直接呼べる入口は「手入力の追加」「手動補正」だけ（理由は関数が決める）。購入済み・作った・家にあるチェックは
+--     それぞれの処理（Gate 6 / 7）の関数だけが内部関数を呼ぶ（理由の偽装・監査を通らない変更を防ぐ）。
 --   * 単位の定義は lib/units/index.ts と同じ。変更時は両方を直す。
 
 -- ---------------------------------------------------------------------------
@@ -91,116 +94,101 @@ comment on table public.inventory_adjustments is '在庫数量の変更履歴（
 create index inventory_adjustments_space_created_idx on public.inventory_adjustments (couple_space_id, created_at desc);
 
 -- ---------------------------------------------------------------------------
--- grants / RLS
+-- grants / RLS（利用者は読むだけ）
 -- ---------------------------------------------------------------------------
 revoke all on table public.inventory_items, public.inventory_adjustments from anon, authenticated;
--- lotの変更は在庫関数（SECURITY INVOKER）経由。関数内のSQLは呼び出し元の権限で動くため、表の権限も必要
-grant select, insert, update, delete on table public.inventory_items to authenticated;
-grant select, insert on table public.inventory_adjustments to authenticated;
+grant select on table public.inventory_items to authenticated;
+grant select on table public.inventory_adjustments to authenticated;
 
 alter table public.inventory_items enable row level security;
 alter table public.inventory_adjustments enable row level security;
 
-create policy inventory_items_same_space on public.inventory_items
-  for all to authenticated
-  using (couple_space_id = (select private.current_couple_space_id()))
-  with check (couple_space_id = (select private.current_couple_space_id()));
+create policy inventory_items_select_same_space on public.inventory_items
+  for select to authenticated
+  using (couple_space_id = (select private.current_couple_space_id()));
 
 create policy inventory_adjustments_select_same_space on public.inventory_adjustments
   for select to authenticated
   using (couple_space_id = (select private.current_couple_space_id()));
 
-create policy inventory_adjustments_insert_own on public.inventory_adjustments
-  for insert to authenticated
-  with check (
-    actor_id = (select auth.uid())
-    and couple_space_id = (select private.current_couple_space_id())
-  );
-
 -- ---------------------------------------------------------------------------
--- 在庫を足す（手入力・購入済み）
+-- 内部関数（private。利用者は直接呼べない。呼び出し元の関数がspaceと理由を決めて渡す）
 -- ---------------------------------------------------------------------------
-create function public.inventory_add(
+create function private.inventory_add_lot(
+  p_space uuid,
   p_ingredient_id uuid,
   p_quantity numeric,
   p_unit text,
-  p_purchased_on date default null,
-  p_reason text default 'MANUAL_ADD',
-  p_source_shopping_item_id uuid default null
+  p_purchased_on date,
+  p_reason text,
+  p_source_shopping_item_id uuid
 )
 returns uuid
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
   v_id uuid;
 begin
-  if p_quantity is null or p_quantity <= 0 then
+  if p_quantity is null or p_quantity <= 0 or p_quantity > 99999 then
     raise exception 'quantity must be positive' using errcode = '22023';
   end if;
-  if p_reason not in ('MANUAL_ADD', 'PURCHASE') then
-    raise exception 'invalid reason' using errcode = '22023';
-  end if;
-
-  insert into public.inventory_items (ingredient_id, quantity, unit, purchased_on, source_shopping_item_id)
+  -- 材料が同じspaceのものであることは複合外部キーで保証される
+  insert into public.inventory_items (couple_space_id, ingredient_id, quantity, unit, purchased_on, source_shopping_item_id)
   values (
+    p_space,
     p_ingredient_id,
-    p_quantity,
+    round(p_quantity, 2),
     nullif(btrim(p_unit), ''),
     coalesce(p_purchased_on, (now() at time zone 'Asia/Tokyo')::date),
     p_source_shopping_item_id
   )
   returning id into v_id;
 
-  insert into public.inventory_adjustments (ingredient_id, inventory_item_id, quantity_before, quantity_after, unit, reason)
-  values (p_ingredient_id, v_id, 0, p_quantity, nullif(btrim(p_unit), ''), p_reason);
+  insert into public.inventory_adjustments (couple_space_id, ingredient_id, inventory_item_id, quantity_before, quantity_after, unit, reason, actor_id)
+  values (p_space, p_ingredient_id, v_id, 0, round(p_quantity, 2), nullif(btrim(p_unit), ''), p_reason, auth.uid());
   return v_id;
 end;
 $$;
 
--- ---------------------------------------------------------------------------
--- lotの数量を直す（手動補正・家にあるチェック）。0なら削除する
--- ---------------------------------------------------------------------------
-create function public.inventory_set_quantity(p_item_id uuid, p_quantity numeric, p_reason text default 'MANUAL_EDIT')
+create function private.inventory_set_lot(p_space uuid, p_item_id uuid, p_quantity numeric, p_reason text)
 returns void
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
   v_item public.inventory_items;
+  v_quantity numeric := round(p_quantity, 2);
 begin
-  if p_quantity is null or p_quantity < 0 then
+  if p_quantity is null or p_quantity < 0 or p_quantity > 99999 then
     raise exception 'quantity must be zero or positive' using errcode = '22023';
   end if;
-  if p_reason not in ('MANUAL_EDIT', 'MANUAL_REMOVE', 'HOME_CHECK') then
-    raise exception 'invalid reason' using errcode = '22023';
-  end if;
-
-  select * into v_item from public.inventory_items as i where i.id = p_item_id for update;
+  select * into v_item from public.inventory_items as i
+  where i.id = p_item_id and i.couple_space_id = p_space
+  for update;
   if not found then
     raise exception 'inventory item not found' using errcode = 'P0002';
   end if;
 
-  if p_quantity = 0 then
+  if v_quantity = 0 then
     delete from public.inventory_items as i where i.id = p_item_id;
   else
-    update public.inventory_items as i set quantity = p_quantity where i.id = p_item_id;
+    update public.inventory_items as i set quantity = v_quantity where i.id = p_item_id;
   end if;
 
-  insert into public.inventory_adjustments (ingredient_id, inventory_item_id, quantity_before, quantity_after, unit, reason)
-  values (v_item.ingredient_id, case when p_quantity = 0 then null else p_item_id end, v_item.quantity, p_quantity, v_item.unit, p_reason);
+  insert into public.inventory_adjustments (couple_space_id, ingredient_id, inventory_item_id, quantity_before, quantity_after, unit, reason, actor_id)
+  values (p_space, v_item.ingredient_id, case when v_quantity = 0 then null else p_item_id end, v_item.quantity, v_quantity, v_item.unit, p_reason, auth.uid());
 end;
 $$;
 
--- ---------------------------------------------------------------------------
--- 在庫を減らす（作った）。互換単位のlotだけを古い順に減らし、減らせなかった量（p_unit単位）を返す
--- ---------------------------------------------------------------------------
-create function public.inventory_consume(p_ingredient_id uuid, p_quantity numeric, p_unit text, p_reason text default 'COOKED')
+-- 互換単位のlotだけを古い順に減らし、減らせなかった量（p_unit単位、小数2桁）を返す。
+-- lotは小数2桁で保存するため、実際に減った量（丸め後の差）で残りを計算する
+create function private.inventory_consume(p_space uuid, p_ingredient_id uuid, p_quantity numeric, p_unit text, p_reason text)
 returns numeric
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
@@ -208,51 +196,97 @@ declare
   v_need_factor numeric;
   v_remaining numeric;   -- 基準単位での残り
   v_lot record;
-  v_lot_base numeric;
-  v_take numeric;        -- 基準単位で取る量
   v_new_quantity numeric;
+  v_taken numeric;       -- 実際に減った量（基準単位）
 begin
   if p_quantity is null or p_quantity <= 0 then
     return 0;
   end if;
-  if p_reason not in ('COOKED', 'MANUAL_EDIT') then
-    raise exception 'invalid reason' using errcode = '22023';
-  end if;
-
   -- 単位なしの数量（例：卵 2）は、単位なしのlotとだけ合わせる（grp = 'none' どうし）
   select b.grp, b.factor into v_need_grp, v_need_factor from private.unit_base(p_unit) as b;
   v_remaining := p_quantity * v_need_factor;
 
   for v_lot in
-    select i.id, i.quantity, i.unit, b.grp, b.factor
+    select i.id, i.quantity, i.unit, b.factor
     from public.inventory_items as i
     cross join lateral private.unit_base(i.unit) as b
-    where i.ingredient_id = p_ingredient_id
+    where i.couple_space_id = p_space
+      and i.ingredient_id = p_ingredient_id
       and b.grp = v_need_grp
     order by i.purchased_on, i.created_at, i.id
     for update of i
   loop
     exit when v_remaining <= 0;
-    v_lot_base := v_lot.quantity * v_lot.factor;
-    v_take := least(v_lot_base, v_remaining);
-    v_new_quantity := round((v_lot_base - v_take) / v_lot.factor, 2);
-    if v_new_quantity <= 0 then
+    v_new_quantity := greatest(round((v_lot.quantity * v_lot.factor - v_remaining) / v_lot.factor, 2), 0);
+    v_taken := (v_lot.quantity - v_new_quantity) * v_lot.factor;
+    if v_new_quantity = 0 then
       delete from public.inventory_items as i where i.id = v_lot.id;
     else
       update public.inventory_items as i set quantity = v_new_quantity where i.id = v_lot.id;
     end if;
-    insert into public.inventory_adjustments (ingredient_id, inventory_item_id, quantity_before, quantity_after, unit, reason)
-    values (p_ingredient_id, case when v_new_quantity <= 0 then null else v_lot.id end, v_lot.quantity, greatest(v_new_quantity, 0), v_lot.unit, p_reason);
-    v_remaining := v_remaining - v_take;
+    insert into public.inventory_adjustments (couple_space_id, ingredient_id, inventory_item_id, quantity_before, quantity_after, unit, reason, actor_id)
+    values (p_space, p_ingredient_id, case when v_new_quantity = 0 then null else v_lot.id end, v_lot.quantity, v_new_quantity, v_lot.unit, p_reason, auth.uid());
+    v_remaining := v_remaining - v_taken;
   end loop;
 
   return round(greatest(v_remaining, 0) / v_need_factor, 2);
 end;
 $$;
 
-revoke all on function public.inventory_add(uuid, numeric, text, date, text, uuid) from public, anon;
-revoke all on function public.inventory_set_quantity(uuid, numeric, text) from public, anon;
-revoke all on function public.inventory_consume(uuid, numeric, text, text) from public, anon;
-grant execute on function public.inventory_add(uuid, numeric, text, date, text, uuid) to authenticated;
-grant execute on function public.inventory_set_quantity(uuid, numeric, text) to authenticated;
-grant execute on function public.inventory_consume(uuid, numeric, text, text) to authenticated;
+revoke all on function private.inventory_add_lot(uuid, uuid, numeric, text, date, text, uuid) from public, anon, authenticated, service_role;
+revoke all on function private.inventory_set_lot(uuid, uuid, numeric, text) from public, anon, authenticated, service_role;
+revoke all on function private.inventory_consume(uuid, uuid, numeric, text, text) from public, anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- 利用者が呼べる入口（手入力の追加・手動補正）。理由は関数が決める
+-- ---------------------------------------------------------------------------
+create function public.inventory_add(p_ingredient_id uuid, p_quantity numeric, p_unit text, p_purchased_on date default null)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_space uuid := private.current_couple_space_id();
+begin
+  if v_space is null then
+    raise exception 'not a member of any couple space' using errcode = '42501';
+  end if;
+  if p_purchased_on > (now() at time zone 'Asia/Tokyo')::date then
+    raise exception 'purchased date must not be in the future' using errcode = '22023';
+  end if;
+  return private.inventory_add_lot(v_space, p_ingredient_id, p_quantity, p_unit, p_purchased_on, 'MANUAL_ADD', null);
+exception
+  when foreign_key_violation then
+    raise exception 'ingredient not found in this couple space' using errcode = '23503';
+end;
+$$;
+
+create function public.inventory_set_quantity(p_item_id uuid, p_quantity numeric)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_space uuid := private.current_couple_space_id();
+begin
+  if v_space is null then
+    raise exception 'not a member of any couple space' using errcode = '42501';
+  end if;
+  perform private.inventory_set_lot(
+    v_space,
+    p_item_id,
+    p_quantity,
+    case when round(p_quantity, 2) = 0 then 'MANUAL_REMOVE' else 'MANUAL_EDIT' end
+  );
+end;
+$$;
+
+revoke all on function public.inventory_add(uuid, numeric, text, date) from public, anon;
+revoke all on function public.inventory_set_quantity(uuid, numeric) from public, anon;
+grant execute on function public.inventory_add(uuid, numeric, text, date) to authenticated;
+grant execute on function public.inventory_set_quantity(uuid, numeric) to authenticated;
+
+-- 2人の画面へ在庫の変更を届ける（Realtime。RLSで購読者を制限する）
+alter publication supabase_realtime add table public.inventory_items;

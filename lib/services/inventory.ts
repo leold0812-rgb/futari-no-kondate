@@ -132,18 +132,13 @@ export async function addInventory(
     p_quantity: input.quantity,
     p_unit: unit,
     p_purchased_on: input.purchasedOn,
-    p_reason: "MANUAL_ADD",
   });
   if (error) throw new Error(`在庫を追加できませんでした: ${error.message}`);
 }
 
-export async function setLotQuantity(
-  supabase: SupabaseClient,
-  lotId: string,
-  quantity: number,
-  reason: "MANUAL_EDIT" | "MANUAL_REMOVE" | "HOME_CHECK" = "MANUAL_EDIT",
-): Promise<void> {
-  const { error } = await supabase.rpc("inventory_set_quantity", { p_item_id: lotId, p_quantity: quantity, p_reason: reason });
+/** 手動補正（0なら削除）。監査の理由はDB関数が決める */
+export async function setLotQuantity(supabase: SupabaseClient, lotId: string, quantity: number): Promise<void> {
+  const { error } = await supabase.rpc("inventory_set_quantity", { p_item_id: lotId, p_quantity: quantity });
   if (error) throw new Error(`在庫を更新できませんでした: ${error.message}`);
 }
 

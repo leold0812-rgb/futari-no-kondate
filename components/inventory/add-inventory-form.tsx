@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, startTransition, type FormEvent } from "react";
+import { useActionState, useEffect, useRef, startTransition, type FormEvent } from "react";
 import type { InventoryFormState } from "@/app/(main)/inventory/actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -18,15 +18,15 @@ export function AddInventoryForm({ action, ingredientNames, today }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
   const formRef = useRef<HTMLFormElement>(null);
 
+  // 保存できたときだけ入力を空にする（失敗時は入力を残して理由を示す）
+  useEffect(() => {
+    if (state.ok) formRef.current?.reset();
+  }, [state]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
-    const formData = new FormData(form);
-    startTransition(async () => {
-      formAction(formData);
-    });
-    // 成功しても失敗しても入力は残さない（失敗時は理由を表示する。材料名は候補からすぐ選び直せる）
-    form.querySelector<HTMLInputElement>('input[name="amount"]')!.value = "";
+    const formData = new FormData(event.currentTarget);
+    startTransition(() => formAction(formData));
   }
 
   return (

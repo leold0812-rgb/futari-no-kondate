@@ -1,7 +1,8 @@
 -- Gate 4: 在庫（lot）と監査、互換単位だけの減算
+-- 利用者の入口は inventory_add / inventory_set_quantity だけ。減算（作った）は内部関数 private.inventory_consume
 begin;
 
-select plan(20);
+select plan(24);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -17,22 +18,33 @@ insert into public.profiles (id, couple_space_id, display_name) values
 insert into public.ingredients (id, couple_space_id, name, category) values
   ('30000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000001', '鶏もも肉', 'MEAT'),
   ('30000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000001', '醤油', 'SEASONING'),
+  ('30000000-0000-4000-8000-000000000003', '10000000-0000-4000-8000-000000000001', 'みりん', 'SEASONING'),
   ('30000000-0000-4000-8000-000000000009', '10000000-0000-4000-8000-000000000002', '別spaceの材料', 'OTHER');
 
 select ok(not has_table_privilege('anon', 'public.inventory_items', 'select'), 'anonは在庫を読めない');
-select ok(not has_table_privilege('authenticated', 'public.inventory_adjustments', 'update'), '監査は更新できない');
-select ok(not has_table_privilege('authenticated', 'public.inventory_adjustments', 'delete'), '監査は削除できない');
+select ok(not has_table_privilege('authenticated', 'public.inventory_items', 'insert'), '在庫表へ直接追加できない（監査を通らない変更を防ぐ）');
+select ok(not has_table_privilege('authenticated', 'public.inventory_items', 'update'), '在庫表を直接更新できない');
+select ok(not has_table_privilege('authenticated', 'public.inventory_adjustments', 'insert'), '監査を直接追加できない（偽装を防ぐ）');
+select ok(
+  not has_function_privilege('authenticated', 'private.inventory_consume(uuid, uuid, numeric, text, text)', 'execute'),
+  '減算（作った）の内部関数は直接呼べない'
+);
+select ok(
+  not has_function_privilege('authenticated', 'private.inventory_add_lot(uuid, uuid, numeric, text, date, text, uuid)', 'execute'),
+  '購入済みの内部関数は直接呼べない（理由を偽れない）'
+);
 
 select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000a", "role": "authenticated"}', true);
 set local role authenticated;
 
 select lives_ok(
   $$select public.inventory_add('30000000-0000-4000-8000-000000000001', 300, 'g', '2026-09-20')$$,
-  '在庫を追加できる'
+  '在庫を手入力で追加できる'
 );
 select public.inventory_add('30000000-0000-4000-8000-000000000001', 0.5, 'kg', '2026-09-25');
 select public.inventory_add('30000000-0000-4000-8000-000000000001', 2, 'パック', '2026-09-26');
 select public.inventory_add('30000000-0000-4000-8000-000000000002', 3, '大さじ', '2026-09-01');
+select public.inventory_add('30000000-0000-4000-8000-000000000003', 1, '大さじ', '2026-09-01');
 
 select throws_ok(
   $$select public.inventory_add('30000000-0000-4000-8000-000000000001', 0, 'g')$$,
@@ -41,63 +53,86 @@ select throws_ok(
   '0以下の量は追加できない'
 );
 select throws_ok(
+  $$select public.inventory_add('30000000-0000-4000-8000-000000000001', 1, 'g', ((now() at time zone 'Asia/Tokyo')::date + 1))$$,
+  '22023',
+  null,
+  '未来の購入日は受け付けない'
+);
+select throws_ok(
   $$select public.inventory_add('30000000-0000-4000-8000-000000000009', 100, 'g')$$,
   '23503',
   null,
   '別spaceの材料には在庫を追加できない'
 );
-select throws_ok(
-  $$insert into public.inventory_items (ingredient_id, quantity, unit) values ('30000000-0000-4000-8000-000000000001', -1, 'g')$$,
-  '23514',
-  null,
-  '数量は0未満にできない'
+select is(
+  (select array_agg(distinct reason) from public.inventory_adjustments),
+  array['MANUAL_ADD'],
+  '手入力の追加は理由が MANUAL_ADD に固定される'
 );
+reset role;
 
--- 互換単位（質量）のlotだけを古い順に減らす
-select is(public.inventory_consume('30000000-0000-4000-8000-000000000001', 400, 'g'), 0.00, '400gは古いlot（300g）と次のlotから減らせる');
+-- 減算（Gate 7の「作った」から呼ばれる内部関数）
+select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000a", "role": "authenticated"}', true);
+select is(
+  private.inventory_consume('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 400, 'g', 'COOKED'),
+  0.00,
+  '400gは古いlot（300g）と次のlot（0.5kg）から減らせる'
+);
 select is(
   (select array_agg(quantity::text || coalesce(unit, '') order by purchased_on) from public.inventory_items where ingredient_id = '30000000-0000-4000-8000-000000000001'),
   array['0.40kg', '2.00パック'],
   '300gのlotは使い切って消え、0.5kgは0.4kgになり、パックは変わらない'
 );
-select is(public.inventory_consume('30000000-0000-4000-8000-000000000001', 1, 'kg'), 0.60, '足りない分（0.6kg）を返す');
-select is(public.inventory_consume('30000000-0000-4000-8000-000000000001', 1, '個'), 1.00, '互換のない単位（個）は減らさずに全量を返す');
 select is(
-  (select quantity from public.inventory_items where ingredient_id = '30000000-0000-4000-8000-000000000001'),
-  2.00,
-  'パックのlotはそのまま'
+  private.inventory_consume('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 1, 'kg', 'COOKED'),
+  0.60,
+  '足りない分（0.6kg）を返す'
 );
-select is(public.inventory_consume('30000000-0000-4000-8000-000000000002', 2, '小さじ'), 0.00, '大さじのlotから小さじ分を減らせる（体積どうし）');
+select is(
+  private.inventory_consume('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 1, '個', 'COOKED'),
+  1.00,
+  '互換のない単位（個）は減らさずに全量を返す'
+);
+select is(
+  private.inventory_consume('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000002', 2, '小さじ', 'COOKED'),
+  0.00,
+  '大さじのlotから小さじ分を減らせる（体積どうし）'
+);
 select is(
   (select quantity from public.inventory_items where ingredient_id = '30000000-0000-4000-8000-000000000002'),
   2.33,
   '大さじ3 − 小さじ2 = 大さじ2.33'
 );
+select is(
+  private.inventory_consume('10000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000003', 1, 'ml', 'COOKED'),
+  0.00,
+  '丸め（大さじ0.93）で実際に減った量（1.05ml）で残りを計算し、減らせた分を返さない'
+);
+select is(
+  private.inventory_consume('10000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', 100, 'g', 'COOKED'),
+  100.00,
+  '別spaceを指定しても在庫は減らない'
+);
 
--- 手動補正と監査
+set local role authenticated;
 select public.inventory_set_quantity((select id from public.inventory_items where unit = 'パック'), 1);
 select is(
   (select row(reason, quantity_before, quantity_after)::text from public.inventory_adjustments where unit = 'パック' and reason = 'MANUAL_EDIT'),
   row('MANUAL_EDIT', 2.00, 1.00)::text,
   '手動補正は変更前後を監査に残す'
 );
+select public.inventory_set_quantity((select id from public.inventory_items where unit = 'パック'), 0.001);
 select is(
-  (select count(*)::int from public.inventory_adjustments where reason = 'COOKED' and actor_id = '00000000-0000-4000-8000-00000000000a'),
-  4,
-  '減算はlotごとに実行者つきで監査に残る（300g・0.5kg×2回・大さじ）'
-);
-select throws_ok(
-  $$select public.inventory_set_quantity((select id from public.inventory_items where unit = 'パック'), 1, 'COOKED')$$,
-  '22023',
-  null,
-  '補正の理由は決められた値だけ'
+  (select count(*)::int from public.inventory_adjustments where unit = 'パック' and reason = 'MANUAL_REMOVE'),
+  1,
+  '丸めて0になる補正は削除（MANUAL_REMOVE）として記録する'
 );
 reset role;
 
--- 同じspaceの相手は読めて補正でき、別spaceからは見えない
+-- 同じspaceの相手は読め、別spaceからは見えず補正もできない
 select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000b", "role": "authenticated"}', true);
 set local role authenticated;
-select is((select count(*)::int from public.inventory_items), 2, '同じspaceの相手も在庫を読める');
+select is((select count(*)::int from public.inventory_items), 2, '同じspaceの相手も在庫を読める（醤油・みりん）');
 reset role;
 
 select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000d", "role": "authenticated"}', true);

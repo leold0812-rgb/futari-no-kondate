@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { requireMember } from "@/lib/auth/session";
 import { tokyoDate } from "@/lib/dates";
 import { INGREDIENT_CATEGORIES, type IngredientCategory } from "@/lib/ingredients";
@@ -39,29 +40,52 @@ export async function addInventoryAction(_previous: InventoryFormState, formData
   return { ok: `${name}を在庫に追加しました。` };
 }
 
+/** 数量の補正。結果は画面上部の通知で示す（?notice= / ?error=） */
 export async function setLotQuantityAction(lotId: string, formData: FormData): Promise<void> {
   await requireMember();
-  const quantity = Number(String(formData.get("quantity") ?? "").normalize("NFKC"));
-  if (!UUID_PATTERN.test(lotId) || !Number.isFinite(quantity) || quantity < 0 || quantity > 99999) return;
-  await setLotQuantity(await createSupabaseServerClient(), lotId, Math.round(quantity * 100) / 100, quantity === 0 ? "MANUAL_REMOVE" : "MANUAL_EDIT");
+  const raw = String(formData.get("quantity") ?? "").normalize("NFKC").trim();
+  const quantity = Math.round(Number(raw) * 100) / 100;
+  if (!UUID_PATTERN.test(lotId) || raw === "" || !Number.isFinite(quantity) || quantity < 0 || quantity > 99999) {
+    redirect("/inventory?error=quantity");
+  }
+  try {
+    await setLotQuantity(await createSupabaseServerClient(), lotId, quantity);
+  } catch {
+    redirect("/inventory?error=save");
+  }
   revalidatePath("/inventory");
+  redirect(`/inventory?notice=${quantity === 0 ? "removed" : "updated"}`);
 }
 
 export async function markLotUsedUpAction(lotId: string): Promise<void> {
   await requireMember();
-  if (!UUID_PATTERN.test(lotId)) return;
-  await setLotQuantity(await createSupabaseServerClient(), lotId, 0, "MANUAL_REMOVE");
+  if (!UUID_PATTERN.test(lotId)) redirect("/inventory?error=save");
+  try {
+    await setLotQuantity(await createSupabaseServerClient(), lotId, 0);
+  } catch {
+    redirect("/inventory?error=save");
+  }
   revalidatePath("/inventory");
+  redirect("/inventory?notice=removed");
 }
 
 export async function updateIngredientAction(ingredientId: string, formData: FormData): Promise<void> {
   await requireMember();
   const category = String(formData.get("category") ?? "") as IngredientCategory;
-  const daysText = String(formData.get("storageDays") ?? "").trim();
-  const storageDays = daysText === "" ? null : Number(daysText.normalize("NFKC"));
-  if (!UUID_PATTERN.test(ingredientId) || !INGREDIENT_CATEGORIES.includes(category)) return;
-  if (storageDays !== null && (!Number.isInteger(storageDays) || storageDays < 1 || storageDays > 365)) return;
-  await updateIngredient(await createSupabaseServerClient(), ingredientId, { category, storageDays });
+  const daysText = String(formData.get("storageDays") ?? "").normalize("NFKC").trim();
+  const storageDays = daysText === "" ? null : Number(daysText);
+  if (!UUID_PATTERN.test(ingredientId) || !INGREDIENT_CATEGORIES.includes(category)) {
+    redirect("/inventory/ingredients?error=save");
+  }
+  if (storageDays !== null && (!Number.isInteger(storageDays) || storageDays < 1 || storageDays > 365)) {
+    redirect("/inventory/ingredients?error=storage-days");
+  }
+  try {
+    await updateIngredient(await createSupabaseServerClient(), ingredientId, { category, storageDays });
+  } catch {
+    redirect("/inventory/ingredients?error=save");
+  }
   revalidatePath("/inventory");
   revalidatePath("/inventory/ingredients");
+  redirect("/inventory/ingredients?notice=saved");
 }
