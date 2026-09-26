@@ -55,11 +55,15 @@ export async function importRecipeAction(url: string): Promise<ImportActionResul
   } catch {
     result = { ok: false, method: "NONE", reason: "ページを読み取れませんでした。", title: null, sourceUrl: checked.url.toString(), host };
   }
-  await admin.rpc("finish_recipe_import", {
-    p_import_id: reservation.import_id,
-    p_method: result.method,
-    p_outcome: result.ok ? "SUCCESS" : "FAILED",
-  });
+  // 完了の記録は1回だけ再試行する。記録できなかった予約は10分後に自動で枠へ戻る（begin_recipe_import）
+  const finish = () =>
+    admin.rpc("finish_recipe_import", {
+      p_import_id: reservation.import_id,
+      p_method: result.method,
+      p_outcome: result.ok ? "SUCCESS" : "FAILED",
+    });
+  const { error: finishError } = await finish();
+  if (finishError) await finish();
   return result;
 }
 

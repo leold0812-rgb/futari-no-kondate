@@ -2,7 +2,7 @@
 -- 予約・完了はservice_role専用（アプリのサーバーがsessionで確かめた利用者とspaceを渡す）
 begin;
 
-select plan(16);
+select plan(17);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -106,9 +106,26 @@ reset role;
 
 select is((select count(*)::int from public.recipe_import_logs where source_host = 'w.example.com'), 0, '上限で止めた予約は記録を作らない');
 
+-- 完了しないまま10分を過ぎたAIの予約は枠に数えない
+insert into public.recipe_import_logs (couple_space_id, created_by, source_host, ai_reserved, created_at)
+select '10000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-00000000000d', 'stale.example.com', true, now() - interval '11 minutes'
+from generate_series(1, 20);
+set local role service_role;
+select is(
+  (select ai_allowed
+   from public.begin_recipe_import('10000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-00000000000d', 'b.example.com', true)),
+  true,
+  '完了しないまま10分を過ぎた予約はAIの枠に数えない'
+);
+reset role;
+
 select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000d", "role": "authenticated"}', true);
 set local role authenticated;
-select is((select count(*)::int from public.recipe_import_logs), 1, '利用者は自分のspaceの記録だけ読める');
+select is(
+  (select count(*)::int from public.recipe_import_logs where couple_space_id <> '10000000-0000-4000-8000-000000000002'),
+  0,
+  '利用者は自分のspaceの記録だけ読める'
+);
 reset role;
 
 select * from finish();

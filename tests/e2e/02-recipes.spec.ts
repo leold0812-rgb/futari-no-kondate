@@ -14,6 +14,8 @@ test.describe.serial("レシピ（Gate 2）", () => {
     await expect(page.getByText("レシピはまだありません")).toBeVisible();
     await snap(page, "10-recipes-empty");
     await page.getByRole("link", { name: "最初のレシピを追加する" }).click();
+    // 追加画面はURL取り込みが既定（Gate 3）。ここでは手入力で登録する
+    await page.getByRole("button", { name: "URLなしで手入力する" }).click();
 
     await page.getByLabel("料理名（必須）").fill("E2E照り焼き");
     await page.getByLabel("調理時間（分）").fill("20");
@@ -90,6 +92,7 @@ test.describe.serial("レシピ（Gate 2）", () => {
   test("入力に誤りがあると、保存せずに理由を示す", async ({ page }) => {
     await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes/new");
+    await page.getByRole("button", { name: "URLなしで手入力する" }).click();
     await page.getByRole("button", { name: "保存する" }).click();
     await expect(page.getByRole("alert").filter({ hasText: "料理名を入力してください" })).toBeVisible();
     await expect(page.getByText("まだ保存されていません")).toBeVisible();
@@ -98,6 +101,7 @@ test.describe.serial("レシピ（Gate 2）", () => {
   test("レシピを削除すると一覧から消える", async ({ page }) => {
     await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes/new");
+    await page.getByRole("button", { name: "URLなしで手入力する" }).click();
     await page.getByLabel("料理名（必須）").fill("E2E削除用");
     await page.getByRole("button", { name: "保存する" }).click();
     await expect(page.getByRole("heading", { level: 1, name: "E2E削除用" })).toBeVisible();

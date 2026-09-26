@@ -76,7 +76,9 @@ begin
   from public.recipe_import_logs as l
   where l.couple_space_id = p_couple_space_id
     and l.created_at >= v_day_start
-    and (l.method = 'AI' or l.ai_reserved);
+    -- 完了しないまま10分を過ぎた予約（処理の中断・完了記録の失敗）は枠を返したものとみなす。AI呼び出しは30秒で打ち切るため、
+    -- 10分を過ぎて使われることはない
+    and (l.method = 'AI' or (l.ai_reserved and l.created_at > now() - interval '10 minutes'));
   v_ai := coalesce(p_want_ai, false) and v_ai_today < 20;
 
   insert into public.recipe_import_logs (couple_space_id, created_by, source_host, ai_reserved)
