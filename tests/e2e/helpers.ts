@@ -10,8 +10,9 @@ export async function snap(page: Page, name: string) {
   await page.screenshot({ path: `test-results/screens/${name}.png`, fullPage: true });
 }
 
-export async function login(page: Page, member: string, pin: string) {
-  await page.goto("/login");
+/** ログインする。`stay: true` なら現在のログイン画面（next付きなど）のまま入力する */
+export async function login(page: Page, member: string, pin: string, options: { stay?: boolean } = {}) {
+  if (!options.stay) await page.goto("/login");
   await page.getByText(member, { exact: true }).click();
   await page.getByLabel(`${member}さんのPIN`).fill(pin);
   await page.getByRole("button", { name: "ログイン" }).click();

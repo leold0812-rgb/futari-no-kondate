@@ -16,7 +16,8 @@ test.describe("ログイン（Gate 1.5 / 1.6）", () => {
     await page.getByText(MEMBER_1, { exact: true }).click();
     await page.getByLabel(`${MEMBER_1}さんのPIN`).fill("274950");
     await page.getByRole("button", { name: "ログイン" }).click();
-    await expect(page.getByRole("alert")).toContainText("PINが違います");
+    // Next.jsのroute announcerもrole="alert"を持つため、文言で特定する
+    await expect(page.getByRole("alert").filter({ hasText: "PINが違います" })).toBeVisible();
     await snap(page, "02-login-error");
 
     await page.getByLabel(`${MEMBER_1}さんのPIN`).fill(PIN_1);
@@ -29,7 +30,7 @@ test.describe("ログイン（Gate 1.5 / 1.6）", () => {
   test("ログイン前に開こうとした画面へ、ログイン後に戻る", async ({ page }) => {
     await page.goto("/records");
     await expect(page).toHaveURL(/\/login\?next=%2Frecords$/);
-    await login(page, MEMBER_1, PIN_1);
+    await login(page, MEMBER_1, PIN_1, { stay: true });
     await expect(page).toHaveURL(/\/records$/);
   });
 

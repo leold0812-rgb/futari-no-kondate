@@ -1,5 +1,6 @@
 -- Gate 1.4: PINの保存と試行制限（public.pin_login_begin / pin_login_succeeded / pin_set）
 -- 実行: `npm run db:test`。fixtureは架空データで、最後にrollbackする。
+-- 注意: 行に依存しない lateral の関数呼び出しは1回しか評価されないため、繰り返し呼ぶ箇所は引数に g を絡めている。
 
 begin;
 
@@ -96,9 +97,9 @@ set local role service_role;
 -- アカウント単位: 連続5回でロック
 -- ---------------------------------------------------------------------------
 select is(
-  (select array_agg(allowed order by g)
-   from generate_series(1, 5) as g,
-        lateral public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-1')),
+  (select array_agg(b.allowed order by g)
+   from generate_series(1, 5) as g
+   cross join lateral public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-1' || repeat('x', g * 0)) as b),
   array[true, true, true, true, true],
   '連続5回目までは試行できる'
 );
@@ -125,8 +126,10 @@ where scope = 'account' and subject = '00000000-0000-4000-8000-0000000000a1';
 set local role service_role;
 
 select is(
-  (select count(*)::int from generate_series(1, 5) as g,
-     lateral public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-2') where allowed),
+  (select count(*)::int
+   from generate_series(1, 5) as g
+   cross join lateral public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-2' || repeat('x', g * 0)) as b
+   where b.allowed),
   5,
   'ロック期限後は再び5回まで試行できる'
 );
@@ -171,9 +174,11 @@ select is(
 select public.pin_login_succeeded('00000000-0000-4000-8000-0000000000a2');
 select is(
   (select count(*)::int
-   from generate_series(1, 19) as g,
-        lateral (select * from public.pin_login_begin('00000000-0000-4000-8000-0000000000a2', 'source-flood')) as b,
-        lateral (select public.pin_login_succeeded('00000000-0000-4000-8000-0000000000a2')) as s
+   from generate_series(1, 19) as g
+   cross join lateral public.pin_login_begin('00000000-0000-4000-8000-0000000000a2', 'source-flood' || repeat('x', g * 0)) as b
+   cross join lateral (
+     select public.pin_login_succeeded(('00000000-0000-4000-8000-0000000000a2' || repeat('x', g * 0))::uuid)
+   ) as s
    where b.allowed),
   19,
   '同じ送信元から19回目までは（成功を挟めば）試行できる'
