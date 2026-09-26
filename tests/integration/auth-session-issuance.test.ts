@@ -219,7 +219,8 @@ describe("サーバーだけがsessionを発行できる（generateLink + verify
       });
       expect(error).not.toBeNull();
       expect(data.session).toBeNull();
-      expect(error?.code).toBe(emailProviderEnabled ? "signup_disabled" : "email_provider_disabled");
+      // 公開サインアップの無効化が、プロバイダーの有効/無効に関係なく先に効く
+      expect(error?.code).toBe("signup_disabled");
     });
 
     it("c. ログインメールの送信を要求されても、sessionは得られない（結果は記録）", async () => {
