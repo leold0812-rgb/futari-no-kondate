@@ -38,6 +38,13 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
+### Gate 5: 週間計画（PR作成時点）
+
+- `lib/recommendation/weekly.ts`（推薦 `weekly-v0.1`、決定的・内訳と緩和理由つき）、`lib/services/weekly-plan.ts`（入力の収集・候補の保存・判断・手動追加・確定）、`lib/plan-week.ts`（今週/来週）
+- migration `20261002090000_create_weekly_plans.sql`（計画・推薦の実行と候補・献立セット・調理履歴、関数、Realtime）
+- 画面：`/plan`（10候補を1枚ずつ、スワイプ/ボタン/矢印キー、1つ戻る、候補切れ時は出し直し・レシピから追加）、`/plan/confirm`（5品の確認・外す・確定）、`/plan/add`（手動追加）。ホームは今週の状態に応じて「今週の献立を決める」か5つの献立＋「来週の献立を決める」
+- テスト：単体（推薦の仕様テスト全項目・ホーム）、pgTAP `weekly_plans.test.sql`（22件）、E2E `05-plan.spec.ts`（`tests/e2e/seed.ts`でローカルSupabaseへ主菜を投入）
+
 ### Gate 4: 在庫（PR作成時点）
 
 - migration `20261001090000_create_inventory.sql`（lot・監査・単位換算・`inventory_add` / `inventory_set_quantity` / `inventory_consume`）
