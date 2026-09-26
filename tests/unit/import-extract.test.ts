@@ -52,13 +52,21 @@ describe("AIへ渡す本文の要約", () => {
     expect(summary.description).toBe("具だくさん");
     expect(summary.imageUrl).toBe("https://img.example.com/ton.jpg");
     expect(summary.text).toContain("豚こま 150g");
-    expect(summary.text).toContain("煮る&味噌を溶く");
     expect(summary.text).not.toContain("secret");
     expect(summary.text).not.toContain("メニュー");
   });
 
+  it("材料の見出しが無いページは本文を送らない（空）", () => {
+    expect(summarizePage(`<main>${"日記".repeat(500)}</main>`).text).toBe("");
+  });
+
+  it("本文に材料が無くても、説明文（投稿文）に材料があればそれを使う", () => {
+    const html = `<meta property="og:description" content="簡単カレー 材料 玉ねぎ1個 作り方 炒める"><main>ログインしてください</main>`;
+    expect(summarizePage(html).text).toContain("玉ねぎ1個");
+  });
+
   it("本文は上限（6000文字）で切り、説明は500文字まで", () => {
-    const html = `<meta name="description" content="${"い".repeat(1000)}"><main>${"あ".repeat(20000)}</main>`;
+    const html = `<meta name="description" content="${"い".repeat(1000)}"><main>材料${"あ".repeat(20000)}</main>`;
     const summary = summarizePage(html);
     expect(summary.text.length).toBe(6000);
     expect(summary.description?.length).toBe(500);

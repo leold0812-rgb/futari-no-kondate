@@ -6,12 +6,13 @@ import { requireMember } from "@/lib/auth/session";
 import { importRecipeFromUrl, type ImportResult } from "@/lib/import/import-recipe";
 import { checkImportUrl } from "@/lib/import/url-safety";
 import { saveRecipe } from "@/lib/services/recipes";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type ImportActionResult = ImportResult | { ok: false; method: "NONE"; reason: string; title: null; sourceUrl: string; host: null };
 
 export async function importRecipeAction(url: string): Promise<ImportActionResult> {
-  await requireMember();
+  const member = await requireMember();
   const input = String(url ?? "").trim().slice(0, 2048);
   const checked = checkImportUrl(input);
   if (!checked.ok) return { ok: false, method: "NONE", reason: checked.reason, title: null, sourceUrl: input, host: null };
@@ -19,11 +20,16 @@ export async function importRecipeAction(url: string): Promise<ImportActionResul
 
   // OPENAI_API_KEY は必要になった時だけ読む（未設定でもJSON-LDのページは取り込める）
   const apiKey = process.env.OPENAI_API_KEY?.trim() || null;
-  const supabase = await createSupabaseServerClient();
-
-  // 上限の判定と記録はDB関数で一体に行う（同時リクエストでも上限を超えない）
-  const { data: reservation, error } = await supabase
-    .rpc("begin_recipe_import", { p_source_host: host, p_want_ai: Boolean(apiKey) })
+  // 上限の判定と記録はDB関数で一体に行う（同時リクエストでも上限を超えない）。
+  // 関数はservice_role専用で、利用者が枠を返したり消費を偽ったりできないよう、sessionで確かめた利用者とspaceだけを渡す
+  const admin = createSupabaseAdminClient();
+  const { data: reservation, error } = await admin
+    .rpc("begin_recipe_import", {
+      p_couple_space_id: member.coupleSpaceId,
+      p_user_id: member.userId,
+      p_source_host: host,
+      p_want_ai: Boolean(apiKey),
+    })
     .single<{ import_id: string | null; allowed: boolean; ai_allowed: boolean }>();
   if (error || !reservation) {
     return { ok: false, method: "NONE", reason: "取り込みを開始できませんでした。少し待ってからもう一度お試しください。", title: null, sourceUrl: checked.url.toString(), host };
@@ -49,7 +55,7 @@ export async function importRecipeAction(url: string): Promise<ImportActionResul
   } catch {
     result = { ok: false, method: "NONE", reason: "ページを読み取れませんでした。", title: null, sourceUrl: checked.url.toString(), host };
   }
-  await supabase.rpc("finish_recipe_import", {
+  await admin.rpc("finish_recipe_import", {
     p_import_id: reservation.import_id,
     p_method: result.method,
     p_outcome: result.ok ? "SUCCESS" : "FAILED",

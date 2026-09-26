@@ -161,7 +161,9 @@ const NON_RECIPE_TAIL = /\n(?:コメント|みんなの|関連|おすすめ|人�
  */
 export function recipeWindow(text: string): string {
   const start = text.search(RECIPE_START);
-  let window = start >= 0 ? text.slice(Math.max(0, start - 400)) : text;
+  // 材料の見出しが無いページはレシピ部分を特定できないため、AIへ送らない（空文字を返す）
+  if (start < 0) return "";
+  let window = text.slice(Math.max(0, start - 400));
   const steps = window.search(STEPS_START);
   const from = Math.max(steps, 0);
   const tail = window.slice(from).search(NON_RECIPE_TAIL);
@@ -172,7 +174,8 @@ export function recipeWindow(text: string): string {
 /** AIへ渡す最小限の本文。script・style・ヘッダー・フッター・ナビゲーション等を除き、レシピ部分だけを上限で切る */
 export function summarizePage(html: string): PageSummary {
   const title = metaContent(html, "og:title") ?? cleanText(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? null, 200);
-  const description = (metaContent(html, "og:description") ?? metaContent(html, "description"))?.slice(0, MAX_DESCRIPTION) ?? null;
+  const fullDescription = metaContent(html, "og:description") ?? metaContent(html, "description");
+  const description = fullDescription?.slice(0, MAX_DESCRIPTION) ?? null;
   const imageUrl = metaContent(html, "og:image");
 
   const main = /<(main|article)[\s>][\s\S]*?<\/\1>/i.exec(html)?.[0] ?? html;
@@ -188,7 +191,8 @@ export function summarizePage(html: string): PageSummary {
     .filter(Boolean)
     .join("\n");
 
-  return { title, description, imageUrl, text: recipeWindow(text) };
+  // 本文に材料が無ければ、説明文（Instagramの投稿文など）に材料があればそれを使う
+  return { title, description, imageUrl, text: recipeWindow(text) || recipeWindow(fullDescription ?? "") };
 }
 
 /** 「2人分」「4 servings」などから人数（1〜8）を取り出す */

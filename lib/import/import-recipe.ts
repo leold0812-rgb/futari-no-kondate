@@ -118,11 +118,11 @@ export async function importRecipeFromUrl(
       host,
     };
   }
-  if (summary.text.length + (summary.description?.length ?? 0) < MIN_TEXT_FOR_AI) {
+  if (summary.text.length < MIN_TEXT_FOR_AI) {
     return {
       ok: false,
       method: "NONE",
-      reason: "ページから本文を読み取れませんでした（ログインが必要なページの可能性があります）。",
+      reason: "ページの中に材料の記載を見つけられませんでした（ログインが必要なページの可能性があります。AIには送っていません）。",
       title: summary.title,
       sourceUrl,
       host,

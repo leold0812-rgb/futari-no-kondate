@@ -48,15 +48,22 @@ export function NewRecipeFlow({
       try {
         result = await importAction(url);
       } catch {
-        // 通信断・サーバーエラーでも行き止まりにせず、手入力へ進めるようにする
+        // 通信断・サーバーエラーでも行き止まりにせず、URLだけ保存・手入力へ進めるようにする（URLは引き継ぐ）
+        let host: string | null = null;
+        try {
+          const parsed = new URL(url.trim());
+          host = parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.hostname : null;
+        } catch {
+          host = null;
+        }
         result = {
           ok: false,
           method: "NONE",
           reason: "通信に失敗しました。通信状態を確認してもう一度取り込むか、手入力で続けてください。",
           title: null,
-          sourceUrl: url,
-          host: null,
-        };
+          sourceUrl: url.trim(),
+          host,
+        } as ImportActionResult;
       }
       if (!result.ok) {
         setStage({ kind: "failed", result });

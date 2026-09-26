@@ -124,7 +124,7 @@ migration: `supabase/migrations/20260929090000_create_recipes.sql`。テスト: 
 migration: `supabase/migrations/20260930090000_create_recipe_import_logs.sql`。テスト: `supabase/tests/database/recipe_import_logs.test.sql`。
 
 - `recipe_import_logs`（`source_host`、`method` = `JSON_LD`/`AI`/`NONE`、`outcome` = `PENDING`/`SUCCESS`/`FAILED`、`ai_reserved`、`created_by`、`created_at`、`finished_at`）。URL全体・本文・AIの入出力は保存しない
-- 利用者は読むだけ（同じspace）。書き込みは `begin_recipe_import(host, want_ai)` と `finish_recipe_import(id, method, outcome)`（`SECURITY DEFINER`）だけ
+- 利用者は読むだけ（同じspace）。書き込みは `begin_recipe_import(space, user, host, want_ai)` と `finish_recipe_import(id, method, outcome)`（`SECURITY DEFINER`、**service_role専用**）だけ。Server Actionがsessionで確かめた利用者とspaceを渡して呼ぶ（利用者が枠の返却・消費を偽れない）
 - `begin_recipe_import` はspace単位のadvisory lockで直列化し、直近1時間30回を超えたら取り込み自体を止め、日本時間の1日20回（`method = 'AI'`または予約中）を超えたらAIの枠を出さない。AIを使わなかった取り込みは完了時に枠を返す
 
 ## 後続で必要になる設計事項
