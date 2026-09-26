@@ -30,7 +30,9 @@
 
 - 初回コミット`b7df51a`を作成し、private repository `leold0812-rgb/futari-no-kondate` を作成してmainをpush
 - GitHub Actions初回実行：全step成功（job名 `lint / typecheck / test / build`）
-- `main`へのCI成功必須化は未設定（下記「既知の問題」参照）
+- repositoryをpublicへ変更（ユーザー判断・ユーザー自身が実行。公開前に全履歴で秘密値・個人メールがないことを確認済み。commit emailはGitHub noreply）
+- ruleset `main: CI必須`（id 24036317）を有効化：default branchに対し、required status check `lint / typecheck / test / build`（GitHub Actions）、strict（最新mainとの差分で再検査）、force push禁止、削除禁止
+- 以後mainへ直接pushできないため、変更はブランチ→PR→CI成功→マージで行う
 
 - Gate 0-1〜0-3はCodexレビュー完了（ユーザー報告、2026-09-26）
 - `.github/workflows/ci.yml`：push（main）とpull_requestで実行。`permissions: contents: read`、同一refの古い実行はキャンセル、15分timeout
@@ -88,7 +90,8 @@ UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ
 
 ## 既知の問題・要確認
 
-- **mainのCI必須化ができていない**：ルールセットAPI・branch protection APIとも `403 Upgrade to GitHub Pro or make this repository public` で拒否された（GitHub Freeのprivate repoでは利用不可）。選択肢は (a) GitHub Proへアップグレード後に設定、(b) 運用でPR経由・CI緑を確認してからマージ。repositoryの公開は2人専用アプリの方針に反するため推奨しない。設定時の内容：対象=default branch、required status check=`lint / typecheck / test / build`（GitHub Actions, integration_id 15368）、strict（最新mainとの差分で再検査）、force push・削除禁止。
+- publicのため、fork PRでもCIが走る。workflowは`contents: read`・secret不使用なので漏えい面は増えないが、今後secretを使うworkflowを追加する場合は`pull_request_target`を使わず、fork PRへsecretを渡さない。
+- repositoryがpublicなので、今後もコード・fixture・docsへ実データ・個人情報・秘密値を入れない（AGENTS.mdのルールがより重要になる）。
 - actionlintが手元にないため、workflowはYAML構文と手順のローカル再現でのみ検証した。初回push時にActionsの結果を確認する。
 - 依存更新の自動化（Dependabot等）は未導入。`@supabase/ssr`を固定しているため、導入時は固定方針と合わせて検討する。
 
@@ -140,6 +143,5 @@ Gate 0-3での追加・変更なし。Gate 0-1で`.env.example`を新規作成�
 
 ## 次の推奨作業
 
-- mainのCI必須化の方針を決める（GitHub Pro導入 or 運用ルール）
 - Gate 0-5：Development / Production設定手順（Supabase・Vercel projectの分離、環境変数の登録先）をdocsへ
 - Gate 1で認証を入れる際に、Supabase session更新用の`proxy.ts`を追加する
