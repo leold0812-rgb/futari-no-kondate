@@ -19,6 +19,9 @@ test.describe("ログイン（Gate 1.5 / 1.6）", () => {
     // Next.jsのroute announcerもrole="alert"を持つため、文言で特定する
     await expect(page.getByRole("alert").filter({ hasText: "PINが違います" })).toBeVisible();
     await snap(page, "02-login-error");
+    // 失敗後も選んだ名前は選択されたまま（PIN欄だけが空に戻る）
+    await expect(page.getByRole("radio", { name: MEMBER_1 })).toBeChecked();
+    await expect(page.getByLabel(`${MEMBER_1}さんのPIN`)).toHaveValue("");
 
     await page.getByLabel(`${MEMBER_1}さんのPIN`).fill(PIN_1);
     await page.getByRole("button", { name: "ログイン" }).click();
