@@ -47,9 +47,13 @@ docs/
 
 ## 認証案
 
-画面は2名の表示名から選択し、個人パスコードを入力する。内部では各人に固定のSupabase Authユーザーを割り当てる。パスコード相当の認証情報はSupabase Authにのみ持たせ、アプリDBにはプロフィールと`auth.uid()`の関連だけを保存する。
+画面は2名の表示名から選択し、個人PINを入力する。表示名の選択はログイン先を選ぶ操作であり、本人確認には使わない。内部では各人に固定のSupabase Authユーザーを割り当て、新規登録は許可しない。Supabase Auth資格情報はAuthにのみ持たせる。PINは平文で保存せず、プロフィール情報へ複製しない。
 
-短いPINは総当たりに弱いため、初期値は6桁以上、試行回数制限、監査ログ（成功可否・時刻。PIN自体は記録しない）を設ける。将来、端末の利便性が必要なら安全なセッション保持で解決し、独自の認証回避は行わない。
+ユーザー決定（2026-09-26）：短い数字PINを使う。PINをSupabase Auth passwordとしてブラウザから直接送る実装にはしない。Supabase Auth endpointはアプリを通さず直接呼べるため、アプリrouteだけに置いたlockoutを迂回できる。
+
+PINはサーバー側で検証し、アカウント単位と送信元単位の永続的な試行制限を適用してからSupabase Auth sessionを発行する。PINそのものを保存・ログ出力しない。Auth session発行はSupabase公式APIで安全に成立することをDevelopment環境の小さなspikeで確認する。Admin/secret keyを使う場合はserver-only routeに限定し、ブラウザへ返さない。公式APIで安全なsession発行方法を確認できない場合は独自JWTや直接password loginへ切り替えず、方式の再検討を報告する。
+
+Supabase Authの標準レート制限は主にIP単位で、token endpointにはアプリ独自のユーザー単位lockoutを代替する機能がない。[Auth rate limits](https://supabase.com/docs/guides/auth/rate-limits)。Admin `generateLink`はリンク/hashを生成し、`verifyOtp`でhashを使ってsessionを得るAPIがあるが、PIN認証後のsession発行に用いる具体的な構成はspikeで検証する。[generateLink](https://supabase.com/docs/reference/javascript/auth-admin-generatelink) / [verifyOtp](https://supabase.com/docs/reference/javascript/auth-verifyotp)
 
 Next.jsの認証セッションはcookieベースのSupabase SSR方式を採用する。`@supabase/ssr`は現時点でbetaのため、導入時にAPI差分を公式文書で確認しversionを固定する。セッション更新が起こる認証済みrouteではISR/CDN cacheを使わない。
 
