@@ -38,6 +38,13 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
+### Gate 4: 在庫（PR作成時点）
+
+- migration `20261001090000_create_inventory.sql`（lot・監査・単位換算・`inventory_add` / `inventory_set_quantity` / `inventory_consume`）
+- `lib/services/inventory.ts`（一覧・材料の検索/作成・在庫量の単位グループ別合計）、`/inventory`（そろそろ使いたい→カテゴリ別、手入力、数量の補正、使い切り）、`/inventory/ingredients`（カテゴリと保存目安の編集）
+- テスト：pgTAP `inventory.test.sql`（20件）、単体`inventory-units-parity.test.ts`（アプリとDBの単位定義の一致）、E2E`04-inventory.spec.ts`
+- E2Eのspecは`01-`〜の番号順に流れる前提（DBの状態を共有するため）
+
 ### Gate 3: URL取り込み（PR作成時点）
 
 - `lib/import/url-safety.ts`（形式・内部向けIPの判定、IPv4埋め込みIPv6も展開）、`safe-fetch.ts`（接続時に全DNS結果を検査、リダイレクト再検査、10秒・3MB・Content-Type、gzip/br、Shift_JIS等の文字コード）、`extract.ts`（JSON-LD Recipe・OGP・本文要約）、`openai.ts`（Responses API、strict JSON Schema、zod検証、store:false）、`import-recipe.ts`（流れと下書き化、AI上限20回/日）、`remote-image.ts`
