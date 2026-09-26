@@ -105,10 +105,11 @@ export function convertQuantity(quantity: number, from: string | null | undefine
   return (quantity * BY_CODE.get(fromCode)!.factor) / BY_CODE.get(toCode)!.factor;
 }
 
-/** 表示用の丸め。大きい値は整数、小さい値は小数1桁まで（0.25刻みの料理表記は分数で見せる） */
-export function formatNumber(value: number): string {
+/** 表示用の丸め。大きい値は整数、小さい値は小数1桁まで。fractions なら料理でよく使う分数（1/2など）で見せる */
+export function formatNumber(value: number, fractions = true): string {
   if (!Number.isFinite(value)) return "";
-  const fractions: [number, string][] = [
+  const fractionsEnabled = fractions;
+  const fractionTable: [number, string][] = [
     [0.25, "1/4"],
     [0.5, "1/2"],
     [0.75, "3/4"],
@@ -117,8 +118,8 @@ export function formatNumber(value: number): string {
   ];
   const whole = Math.floor(value);
   const rest = value - whole;
-  if (value < 10) {
-    for (const [fraction, label] of fractions) {
+  if (fractionsEnabled && value < 10) {
+    for (const [fraction, label] of fractionTable) {
       if (Math.abs(rest - fraction) < 0.02) return whole === 0 ? label : `${whole}と${label}`;
     }
   }
@@ -131,7 +132,10 @@ export function formatNumber(value: number): string {
 export function formatQuantity(quantity: number | null, unit: string | null | undefined): string {
   const unitLabel = normalizeUnit(unit) ?? unit?.trim() ?? "";
   if (quantity === null) return unitLabel;
-  const number = formatNumber(quantity);
+  // 分数で書くのは計量スプーン・カップと個数の単位だけ（g・kg・ml・Lは小数）
+  const kind = unitKind(unitLabel);
+  const fractional = kind === "count" || unitLabel === "大さじ" || unitLabel === "小さじ" || unitLabel === "カップ" || kind === null;
+  const number = formatNumber(quantity, fractional);
   if (unitLabel === "大さじ" || unitLabel === "小さじ" || unitLabel === "カップ") return `${unitLabel}${number}`;
   return `${number}${unitLabel}`;
 }

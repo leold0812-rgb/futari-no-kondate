@@ -38,7 +38,9 @@ test.describe.serial("週間計画（Gate 5）", () => {
     await snap(page, "41-plan-confirm");
     await page.getByRole("button", { name: "この5品で決める" }).click();
 
-    await expect(page.getByText("献立を決めました。")).toBeVisible();
+    // 確定すると副菜・汁物と買い物リストの下書きが用意され、買い物の準備画面へ進む（Gate 6）
+    await expect(page.getByText("献立を決めました。副菜・汁物と買い物リストを用意しました。")).toBeVisible();
+    await page.goto("/");
     await expect(page.getByRole("heading", { name: "今週の献立（5つ残り）" })).toBeVisible();
     await snap(page, "42-home-planned");
   });

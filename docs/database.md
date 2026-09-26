@@ -150,6 +150,15 @@ migration: `supabase/migrations/20261002090000_create_weekly_plans.sql`。テス
 - 利用者は読むだけ。書き込みは関数（`SECURITY DEFINER`、関数内で自分のspaceかを確認）：`ensure_weekly_plan`、`save_recommendation_run`（DRAFTのみ、版を進める）、`decide_candidate`（計画行をロックし、DRAFT・最新runの候補だけ。版を進める）、`add_manual_candidate`（もう作らない料理も手動なら可）、`confirm_weekly_plan(plan, version)`（最新runで採用済みの候補がちょうど5品のときだけ、判断順に献立セットを作る。楽観ロック、確定済みへの再送は成功扱い）
 - Realtime：`weekly_plans`・`recommendation_candidates`・`meal_sets`（Gate 4で`inventory_items`も）
 
+## 確定済みschema: 買い物（Gate 6）
+
+migration: `supabase/migrations/20261003090000_create_shopping.sql`。テスト: `supabase/tests/database/shopping.test.sql`、`tests/unit/shopping-*.test.ts`、`tests/unit/recommendation-sides.test.ts`。
+
+- `shopping_lists`（週の計画ごとに1つ、`DRAFT`/`CONFIRMED`）、`shopping_items`（基準単位の必要量・在庫差引・買う量、`PLAN`/`INSURANCE`/`MANUAL`、家にある・購入済み・対応する在庫lot）、`shopping_category_orders`（spaceごとの売り場順）
+- 利用者は読むだけ。関数（`SECURITY DEFINER`・自分のspaceを確認）：`set_meal_set_sides`、`prepare_shopping_list`（DRAFTなら献立由来の項目を作り直す、確定済みは変えない）、`set_home_check`（不足分を在庫へ`HOME_CHECK`、外すと戻す、DRAFTのみ）、`add_shopping_item` / `remove_shopping_item`（保険・手動）、`confirm_shopping_list`、`set_purchased`（在庫へ`PURCHASE`、行ロックと`source_shopping_item_id`一意で二重加算を防ぐ、取り消しは`PURCHASE_UNDO`）、`set_shopping_category_order`
+- 材料の合算・在庫差引（`lib/shopping/aggregate.ts`）、副菜・汁物（`lib/recommendation/sides.ts`）、保険食材（`lib/shopping/insurance.ts`）はアプリの純粋関数で計算してDB関数へ渡す
+- Realtime：`shopping_items`・`shopping_lists`（買い物中の2人の同時操作）
+
 ## 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。
