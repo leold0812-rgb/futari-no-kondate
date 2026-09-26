@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { RecipeFormState } from "@/components/recipes/recipe-form";
 import { requireMember } from "@/lib/auth/session";
+import { fetchRemoteImage } from "@/lib/import/remote-image";
 import { RATINGS, type Rating } from "@/lib/recipes/constants";
 import { removeRecipeImage, uploadRecipeImage, validateImageFile, verifyImageContent } from "@/lib/services/recipe-images";
 import { saveRecipe, setFavorite, setRating, softDeleteRecipe } from "@/lib/services/recipes";
@@ -14,7 +15,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 async function parseForm(
   formData: FormData,
-): Promise<{ input: RecipeInput; image: File | null; removeImage: boolean } | { errors: string[] }> {
+): Promise<{ input: RecipeInput; image: File | null; removeImage: boolean; importImageUrl: string | null } | { errors: string[] }> {
   let raw: unknown;
   try {
     raw = JSON.parse(String(formData.get("payload") ?? ""));
@@ -30,7 +31,13 @@ async function parseForm(
     const problem = validateImageFile(image) ?? (await verifyImageContent(image));
     if (problem) return { errors: [problem] };
   }
-  return { input: parsed.data, image, removeImage: formData.get("removeImage") === "1" };
+  const importImageUrl = formData.get("importImageUrl");
+  return {
+    input: parsed.data,
+    image,
+    removeImage: formData.get("removeImage") === "1",
+    importImageUrl: typeof importImageUrl === "string" && importImageUrl ? importImageUrl.slice(0, 2048) : null,
+  };
 }
 
 export async function createRecipeAction(_previous: RecipeFormState, formData: FormData): Promise<RecipeFormState> {
@@ -47,9 +54,12 @@ export async function createRecipeAction(_previous: RecipeFormState, formData: F
   }
 
   let notice = "saved";
-  if (parsed.image) {
+  // 自分で選んだ写真を優先し、無ければ（確認済みの場合だけ）取り込み元ページの写真を使う
+  const photo = parsed.image ?? (parsed.importImageUrl ? await fetchRemoteImage(parsed.importImageUrl) : null);
+  if (!photo && parsed.importImageUrl) notice = "image-failed";
+  if (photo) {
     try {
-      const path = await uploadRecipeImage(supabase, member.coupleSpaceId, recipeId, parsed.image);
+      const path = await uploadRecipeImage(supabase, member.coupleSpaceId, recipeId, photo);
       const { error } = await supabase.from("recipes").update({ image_path: path }).eq("id", recipeId);
       if (error) {
         await removeRecipeImage(supabase, path);
@@ -85,9 +95,11 @@ export async function updateRecipeAction(
 
   let newPath: string | null | undefined;
   let notice = "saved";
-  if (parsed.image) {
+  const photo = parsed.image ?? (parsed.importImageUrl ? await fetchRemoteImage(parsed.importImageUrl) : null);
+  if (!photo && parsed.importImageUrl) notice = "image-failed";
+  if (photo) {
     try {
-      newPath = await uploadRecipeImage(supabase, member.coupleSpaceId, recipeId, parsed.image);
+      newPath = await uploadRecipeImage(supabase, member.coupleSpaceId, recipeId, photo);
     } catch {
       notice = "image-failed";
     }

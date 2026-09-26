@@ -119,6 +119,14 @@ migration: `supabase/migrations/20260929090000_create_recipes.sql`。テスト: 
 - `public.save_recipe(recipe_id, recipe jsonb, ingredients jsonb)`：`SECURITY INVOKER`（RLSが効く）。レシピ本体と材料行を1 transactionで保存し、材料名を材料マスタへ対応付け（無ければ作成）
 - Storage：private bucket `recipe-images`（5MB、JPEG/PNG/WebP）。パス先頭が自分のspace IDのものだけ読み書き可
 
+## 確定済みschema: URL取り込みの利用記録（Gate 3）
+
+migration: `supabase/migrations/20260930090000_create_recipe_import_logs.sql`。テスト: `supabase/tests/database/recipe_import_logs.test.sql`。
+
+- `recipe_import_logs`（`source_host`、`method` = `JSON_LD`/`AI`/`NONE`、`outcome` = `SUCCESS`/`FAILED`、`created_by`、`created_at`）。URL全体・本文・AIの入出力は保存しない
+- 同じspaceの2人が読め、本人の名前でだけ追加できる。更新・削除の権限はない（AIの1日上限を回避させない）
+- AIの利用上限：1 spaceあたり日本時間の1日20回（`lib/import/import-recipe.ts`の`DAILY_AI_IMPORT_LIMIT`）
+
 ### 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。

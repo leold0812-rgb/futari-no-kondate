@@ -111,3 +111,16 @@ export function normalizeIngredientName(raw: string): string | null {
 export function isUncountedLine(quantity: number | null): boolean {
   return quantity === null;
 }
+
+/**
+ * 「鶏もも肉 300g」「玉ねぎ…1個」「塩 少々」のような1行を材料名と分量の文字列に分ける（貼り付け・URL取り込み用）。
+ * 分量が見つからなければ amount は空文字。
+ */
+export function splitIngredientLine(line: string): { rawName: string; amount: string } | null {
+  const text = line.normalize("NFKC").trim().replace(/^[・\-*●◯○]\s*/, "");
+  if (!text) return null;
+  const match =
+    /^(.+?)(?:\s*[…:：.]{1,}\s*|\s+)([0-9½¼¾]|大さじ|小さじ|カップ|少々|適量|適宜|ひとつまみ|お好みで)(.*)$/.exec(text);
+  if (!match) return { rawName: text.slice(0, 60), amount: "" };
+  return { rawName: match[1].trim().slice(0, 60), amount: `${match[2]}${match[3]}`.trim() };
+}

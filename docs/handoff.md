@@ -38,6 +38,15 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
+### Gate 3: URL取り込み（PR作成時点）
+
+- `lib/import/url-safety.ts`（形式・内部向けIPの判定、IPv4埋め込みIPv6も展開）、`safe-fetch.ts`（接続時に全DNS結果を検査、リダイレクト再検査、10秒・3MB・Content-Type、gzip/br、Shift_JIS等の文字コード）、`extract.ts`（JSON-LD Recipe・OGP・本文要約）、`openai.ts`（Responses API、strict JSON Schema、zod検証、store:false）、`import-recipe.ts`（流れと下書き化、AI上限20回/日）、`remote-image.ts`
+- 画面：`/recipes/new` はURL取り込みが既定（成功→確認フォーム、失敗→「URLだけ保存」「手入力で続ける」）。`?replace=<id>`で「URLだけ」レシピの再取り込み。元ページ写真は確認チェック時のみ複製
+- migration `20260930090000_create_recipe_import_logs.sql`
+- 共通化：材料行の分割を`lib/ingredients`の`splitIngredientLine`へ。`lib/dates.ts`（日本時間の日付・週）、`lib/inventory/status.ts`（Gate 4用の鮮度判定）も追加
+- テスト：単体（url-safety 45件・extract・openai・import-recipe・dates・inventory-status）、pgTAP `recipe_import_logs.test.sql`、E2E`import.spec.ts`（CIはOpenAIキーなし＝失敗経路を確認）
+- 注意：iCloud同期で`* 2.ts`の重複ファイルが作業ツリーにできることがある。中身を元ファイルと比較してから削除する
+
 ### Gate 2: レシピ（PR作成時点）
 
 - migration `20260929090000_create_recipes.sql`（材料マスタ・レシピ・材料行・評価・お気に入り・`save_recipe` RPC・画像bucketとStorage policy）。詳細は`docs/database.md`

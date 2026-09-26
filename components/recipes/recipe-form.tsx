@@ -16,6 +16,7 @@ import {
   type DishType,
   type MainCategory,
 } from "@/lib/recipes/constants";
+import { splitIngredientLine } from "@/lib/ingredients";
 import { formatQuantity, parseAmount } from "@/lib/units";
 import styles from "./recipe-form.module.css";
 
@@ -87,22 +88,15 @@ function toNumberOrNull(value: string): number | null {
   return Number.isFinite(n) ? n : Number.NaN;
 }
 
-/** 「鶏もも肉 300g」「玉ねぎ…1個」のような貼り付けを材料名と分量に分ける */
-function splitPastedLine(line: string): { rawName: string; amount: string } | null {
-  const text = line.normalize("NFKC").trim().replace(/^[・\-*●]\s*/, "");
-  if (!text) return null;
-  const match = /^(.+?)(?:\s*[…:：.]{1,}\s*|\s+)([0-9０-９½¼¾]|大さじ|小さじ|カップ|少々|適量|適宜|ひとつまみ|お好みで)(.*)$/.exec(text);
-  if (!match) return { rawName: text, amount: "" };
-  return { rawName: match[1].trim(), amount: `${match[2]}${match[3]}`.trim() };
-}
-
 type Props = {
   initial: RecipeFormValues;
   action: (state: RecipeFormState, formData: FormData) => Promise<RecipeFormState>;
   submitLabel: string;
+  /** URL取り込みで見つかった元ページの写真。利用者が確認した場合だけサーバーが複製する */
+  importImageUrl?: string | null;
 };
 
-export function RecipeForm({ initial, action, submitLabel }: Props) {
+export function RecipeForm({ initial, action, submitLabel, importImageUrl = null }: Props) {
   const idPrefix = useId();
 
   const [state, formAction, pending] = useActionState<RecipeFormState, FormData>(action, {});
@@ -141,6 +135,7 @@ export function RecipeForm({ initial, action, submitLabel }: Props) {
   const [image, setImage] = useState<Blob | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(initial.imageUrl ?? null);
   const [removeImage, setRemoveImage] = useState(false);
+  const [copySourceImage, setCopySourceImage] = useState(false);
   const [clientError, setClientError] = useState<string | null>(null);
   const errorRef = useRef<HTMLDivElement>(null);
 
@@ -163,7 +158,7 @@ export function RecipeForm({ initial, action, submitLabel }: Props) {
   }
 
   function importPaste() {
-    const lines = paste.split(/\r?\n/).map(splitPastedLine).filter((l): l is { rawName: string; amount: string } => l !== null);
+    const lines = paste.split(/\r?\n/).map(splitIngredientLine).filter((l): l is { rawName: string; amount: string } => l !== null);
     if (lines.length === 0) return;
     setRows((current) => [
       ...current.filter((row) => row.rawName.trim() !== ""),
@@ -255,6 +250,7 @@ export function RecipeForm({ initial, action, submitLabel }: Props) {
     formData.set("payload", JSON.stringify(built.payload));
     if (image) formData.set("image", image, "photo.jpg");
     if (removeImage) formData.set("removeImage", "1");
+    if (!image && copySourceImage && importImageUrl) formData.set("importImageUrl", importImageUrl);
     startTransition(() => formAction(formData));
   }
 
@@ -481,6 +477,12 @@ export function RecipeForm({ initial, action, submitLabel }: Props) {
             className={styles.file}
           />
         </div>
+        {importImageUrl && !image ? (
+          <label className={styles.checkbox}>
+            <input type="checkbox" checked={copySourceImage} onChange={(e) => setCopySourceImage(e.target.checked)} />
+            元のページの写真も保存する（サイトの利用条件で許可されている場合だけ）
+          </label>
+        ) : null}
         {imagePreview && !removeImage ? (
           <Button variant="ghost" size="small" onClick={() => { setRemoveImage(true); setImage(null); }}>
             写真を外す

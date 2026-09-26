@@ -40,7 +40,8 @@ Supabaseのproject URLとpublishable keyは各projectのConnect/API Keys画面�
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Dev URL | Supabase Dev URL | Supabase Prod URL | 公開値。`https://`を使用 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Dev publishable key | Dev publishable key | Prod publishable key | 公開値。service roleは禁止 |
 | `SUPABASE_SERVICE_ROLE_KEY` | 未登録（ローカルは`.env.local`） | Dev secret key（Sensitive） | Prod secret key（Sensitive） | ログイン（PIN検証・session発行）とバックアップで使う。server-onlyの`lib/supabase/admin.ts`だけが読む |
-| `OPENAI_API_KEY` | 未登録 | 未登録 | 未登録 | レシピ取り込み実装時に必要な環境だけへ登録 |
+| `OPENAI_API_KEY` | 未登録（ローカルは`.env.local`） | Dev用project key（Sensitive、任意） | Prod用project key（Sensitive、任意） | URL取り込みでJSON-LDが無いページをAIで読む時だけ使う。未設定でも他の機能は動く |
+| `OPENAI_IMPORT_MODEL` | 任意 | 任意 | 任意 | 秘密値ではない。既定 `gpt-5-mini` |
 | `CRON_SECRET` | 未登録 | 未登録 | 未登録 | バックアップCron実装時にProductionへ登録 |
 | `PIN_PEPPER` | 未登録（ローカルは`.env.local`） | Dev用の値（Sensitive） | Prod用の別の値（Sensitive） | PINハッシュと送信元HMACのpepper。32文字以上。変えると登録済みPINが無効になる |
 | `BLOB_READ_WRITE_TOKEN` | 未登録 | 未登録 | 未登録 | バックアップ実装時にprivate storeごとに登録 |
