@@ -1,0 +1,10 @@
+.main {
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding-top: calc(var(--safe-top) + 16px);
+  padding-left: calc(var(--safe-left) + var(--space-gutter));
+  padding-right: calc(var(--safe-right) + var(--space-gutter));
+  /* 下部タブ＋Safe Area＋余白ぶん空け、本文がタブに隠れないようにする */
+  padding-bottom: calc(var(--bottom-nav-height) + var(--safe-bottom) + 24px);
+}
