@@ -9,6 +9,7 @@ const SERVER_SECRET_NAMES = [
   "OPENAI_API_KEY",
   "CRON_SECRET",
   "BLOB_READ_WRITE_TOKEN",
+  "PIN_PEPPER",
 ];
 
 if (!existsSync(STATIC_DIR)) {

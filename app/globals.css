@@ -8,6 +8,9 @@
   --color-primary-strong: #53634b;
   --color-on-primary: #fffdf8;
   --color-caution: #b56f52; /* Terracotta */
+  --color-caution-strong: #8f4f35; /* 文字用。Terracottaは本文サイズでコントラスト4.5:1に届かないため */
+  --color-primary-soft: #e7ebe1;
+  --color-caution-soft: #f5e6de;
   --color-border: #ded8cc;
 
   --radius-card: 16px;

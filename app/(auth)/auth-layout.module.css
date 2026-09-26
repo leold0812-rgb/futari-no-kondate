@@ -1,0 +1,13 @@
+.main {
+  display: grid;
+  align-content: start;
+  gap: 20px;
+  width: 100%;
+  max-width: 480px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding-top: calc(var(--safe-top) + 40px);
+  padding-left: calc(var(--safe-left) + var(--space-gutter));
+  padding-right: calc(var(--safe-right) + var(--space-gutter));
+  padding-bottom: calc(var(--safe-bottom) + 24px);
+}

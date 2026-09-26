@@ -1,0 +1,12 @@
+.stack {
+  display: grid;
+  gap: 16px;
+}
+
+.heading {
+  font-size: 1.0625rem;
+}
+
+.muted {
+  color: var(--color-text-muted);
+}

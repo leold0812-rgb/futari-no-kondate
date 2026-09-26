@@ -15,6 +15,8 @@ const SERVER_ENV_RULES = {
   // docs/development-plan.md: Cron endpointは16文字以上のランダムなCRON_SECRETで保護する
   CRON_SECRET: { reason: "16文字以上のランダムな値を設定してください", isValid: (v) => v.length >= 16 },
   BLOB_READ_WRITE_TOKEN: { reason: "値が設定されていません", isValid: (v) => v.length > 0 },
+  // PINハッシュ・送信元HMACのpepper（lib/auth/pin.ts）。変えると登録済みPINはすべて無効になる
+  PIN_PEPPER: { reason: "32文字以上のランダムな値を設定してください", isValid: (v) => v.length >= 32 },
 } as const satisfies Record<string, ServerEnvRule>;
 
 export type ServerEnvName = keyof typeof SERVER_ENV_RULES;
