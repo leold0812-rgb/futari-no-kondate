@@ -119,9 +119,9 @@ UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ
 ## 既知の問題・要確認
 
 - **Gate 1.1のDBテストはSupabase公式のローカル環境では未実行**：この環境にDocker（およびDockerランタイム）がなく`supabase start` / `supabase test db` / `supabase db reset`を実行できなかった。代替として、Homebrewの`postgresql@17`（17.11）とpgTAP 1.3.4（本家v1.3.4をソースからビルド）で使い捨てのローカルDB（作業ディレクトリ内、`127.0.0.1:54399`）を作り、Supabaseのロール（`anon` / `authenticated` / `service_role`）・`auth.users`（`id`のみ）・`auth.uid()`・`public`の既定privileges・`extensions` schemaを最小限に再現したうえでmigration適用とテストを行った。実際のSupabaseイメージでは、`auth.users`の列構成、`auth.uid()`実装、既定privileges、pgTAPの導入場所が異なる可能性があるため、GitHub ActionsのDBジョブ（公式のSupabaseローカルDBイメージ）で`npm run db:test` / `npm run db:test:concurrency`を実行して確認する。
-- **CIのDBテスト（`db / rls policy tests`ジョブ）は初回のActions実行で初めて公式環境に掛かる**。MacへDockerは導入せず、GitHub Actionsランナー（`ubuntu-latest`のDocker）で`npx supabase db start` → `npm run db:test` → `npm run db:test:concurrency`を実行する。次の4点はDocker不在のためローカルで事前確認できておらず、初回実行で確認する：(1) `db start`だけでmigrationが適用されるか（されなければ`supabase db reset`を追加） (2) DBのみの起動で`auth.users`が存在するか（無ければ`supabase start -x ...`で必要サービスだけ起動） (3) ランナーで`psql`が使えるか（PostgreSQL 16.15クライアントが搭載。無ければ`postgresql-client`をapt導入） (4) 所要時間（Dockerイメージのpullを含め数分の見込み）。
+- **CIのDBテスト（`db / rls policy tests`ジョブ）はPR #3の初回Actions実行で公式のSupabaseローカルDBに対して成功した（2026-09-26）**：`npx supabase db start`でmigration適用、`auth.users`が存在しFKが通る、`psql`利用可、pgTAP `Files=1, Tests=47, Result: PASS`、同時実行テストOK、DBジョブ所要約1分半。事前に懸念した4点（migration適用・`auth.users`・`psql`・所要時間）はすべて問題なし。MacへDockerは導入せず、GitHub Actionsランナーで実行する運用とする。
 - CIのDBジョブは追加Action不使用（`npm ci`で入る固定版Supabase CLIを`npx`で使う）、secretsなし、`contents: read`のみ。`supabase link` / `--linked` / `--db-url` / `--project-ref` / `db push`の混入を検出するGuard手順あり。hosted Supabaseには接続しない。
-- **mainのルールセット`main: CI必須`の必須チェックへ`db / rls policy tests`をまだ追加していない**。PRで初回成功を確認してから追加する（`gh api`でruleset id 24036317を更新）。パスフィルタは付けない（必須チェックが実行されずマージが止まるため）。
+- mainのルールセット`main: CI必須`（id 24036317）の必須チェックへ`db / rls policy tests`を追加済み（`lint / typecheck / test / build`と合わせて2つ必須、strict）。パスフィルタは付けない（必須チェックが実行されずマージが止まるため）。
 - 公開repositoryのため、GitHubの設定で外部contributorのworkflow実行に承認を必須にすることを推奨（未設定・要ユーザー操作）。
 - Development用hosted Supabase projectにはmigrationを適用していない（指示範囲外）。適用は`supabase link`とレビュー後に別作業で行う。Production projectには接続・変更していない。
 - `.next/types/routes.d 2.ts`のような` 2`付き重複ファイルが生成され、`npm run typecheck`が`Duplicate identifier 'LayoutProps'`で一度失敗した（その後のbuildで`.next`が再生成され解消、再実行で成功）。リポジトリがiCloud等の同期対象フォルダ（`~/Documents`）配下にあることが原因の可能性がある。再発する場合は`.next`を削除して再生成する。
@@ -162,7 +162,7 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 - 変異検証（テストが実際に壊れた状態を検出するか）：上限triggerの削除→6件失敗、authenticatedへのINSERT権限＋policy追加→3件失敗、profilesのRLS無効化→6件失敗、anonへのSELECT付与→2件失敗
 - 同時実行（実2接続）：`scripts/db/test-member-limit-concurrency.sh`成功（2回連続）。`FOR UPDATE`を外した版では3人目が通り、スクリプトが失敗することを確認。実行後fixtureは残らない（profiles / spaces / auth.users とも0件）。remote hostを指定すると実行を拒否することも確認
 - `npm run lint`：成功 / `npm run typecheck`：成功（上記の`.next`重複ファイルによる一時失敗のあと再実行で成功） / `npm test`：5 files / 20 tests成功 / `npm run build`：成功 / `npm run check:bundle`：成功 / `npm audit`：0 vulnerabilities
-- Supabase公式のローカルDBでの`supabase db start` / `supabase test db`：Macでは未実行（Docker不在）。GitHub ActionsのDBジョブで実行する
+- Supabase公式のローカルDBでの`supabase db start` / `supabase test db`：Macでは未実行（Docker不在）。GitHub ActionsのDBジョブ（PR #3）で成功：pgTAP 47/47・同時実行テストOK
 
 ### Gate 0-5
 
@@ -201,7 +201,7 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 
 ## 次の推奨作業
 
-- Gate 1.1のPRでCIの`db / rls policy tests`ジョブが成功することを確認し、成功後にruleset `main: CI必須`の必須チェックへ追加する
+- PR #3のCodexレビュー → マージ
 - Gate 1.1の差分レビュー（Codex）→ commit / PR
 - Gate 1.2：PIN認証後にSupabase Auth sessionを作る方式のDevelopment-only spike（`docs/development-plan.md`）。指示書で「次のGate 1.2作業（2 Auth accountsの開発環境bootstrap）」とされている場合は、`development-plan.md`の番号（1.2=spike、1.3=bootstrap）と作業指示書の呼び方を揃える
 - Gate 1で認証を入れる際に、Supabase session更新用の`proxy.ts`を追加する
