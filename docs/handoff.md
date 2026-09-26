@@ -96,6 +96,7 @@ UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ
 - GitHub：Vercel GitHub App（installation 123174061）のRepository accessへ`futari-no-kondate`を追加（ユーザー許可のうえ実施。既存の許可repositoryは変更なし）
 - Vercel環境変数：`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`（publishable key）を登録。Development・Preview（全branch）→ dev project、Production → prod project。service role / OpenAI / Cron / Blobは未登録
 - ローカルの`.vercel/`はlink情報のみでGit管理外
+- 初回Production deploymentは、Production Branchが`main`の設定にもかかわらずPR branch `docs/gate-0-5-environments`（`d33f379`）から作られた（Production deploymentが1件もない状態でGit接続直後にpushしたため）。mainとの差分はdocsのみで、`https://futari-no-kondate.vercel.app`の`/`・`/recipes`・manifestは200。PR #1・#2をmainへマージした後、mainからのProduction deploymentに置き換わったことを確認する
 
 ## 未完了
 
