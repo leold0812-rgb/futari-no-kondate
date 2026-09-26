@@ -4,6 +4,8 @@
 
 ## PR #3 レビュー（2026-09-26）
 
+> 解決済み（2026-09-27）：下記の欠陥は`fix/member-limit-isolation`（新規migration `20260927090000_fix_member_limit_isolation.sql`）で修正し、`REPEATABLE READ` / `SERIALIZABLE`の回帰テストを追加した。
+
 - 完了：`origin/main...HEAD` のmigration、RLSテスト、CI、仕様を確認。PostgreSQL 17.11の使い捨てローカルDBに実際のmigrationを適用し、`REPEATABLE READ`で同一spaceに3件登録できることを再現した（最終件数3、両transaction成功）。コード修正は未実施。
 - 未完了・既知の問題：`private.enforce_couple_space_member_limit()`はspace行を`FOR UPDATE`でロックするが、古いtransaction snapshotでの件数判定を防げない。2人上限を全分離レベルで保証する修正と、同条件の回帰テストが必要。hosted Development / Production DBは変更していない。
 - DB migration / 環境変数の変更：レビューによる変更なし。
@@ -34,9 +36,16 @@
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
-### Gate 1.2: PIN認証後のAuth session発行方式のspike（今回・PR #4）
+### Gate 1.1修正: 2人上限のtransaction分離レベル対応（今回）
 
-- 結論（提案）：サーバー限定の`auth.admin.generateLink({ type: 'magiclink' })` → `verifyOtp({ token_hash, type: 'email' })`でsessionを発行し、`@supabase/ssr`のcookieへ書く。メールプロバイダーは無効化する。詳細・根拠・未検証事項は`docs/decisions/0001-pin-session-issuance.md`（ユーザー承認待ち）
+- 新規migration `supabase/migrations/20260927090000_fix_member_limit_isolation.sql`：上限triggerの`FOR UPDATE`を、対象space行の`UPDATE`（`updated_at`更新）に置き換え。repeatable read / serializableでは競合を`could not serialize access`（40001）として検出する。仕組みは`docs/database.md`
+- `scripts/db/test-member-limit-concurrency.sh`：`read committed` / `repeatable read` / `serializable`の3シナリオ（後続接続が先行接続のcommit前にsnapshotを取りcommit後に追加を試みる形を含む）に拡張
+- 検証：旧関数でRRシナリオが失敗（3件登録）→ 新migrationで全シナリオ成功（ローカルPostgreSQL）。空DBへ2つのmigrationを順に適用でき、pgTAP 47/47成功。公式のSupabaseローカルDBでの結果はPRのCI（`db / rls policy tests`）で確認する
+- 副作用：profile追加・移動のたびにspaceの`updated_at`が更新される
+
+### Gate 1.2: PIN認証後のAuth session発行方式のspike（PR #4でマージ済み）
+
+- 結論（2026-09-27にユーザー承認）：サーバー限定の`auth.admin.generateLink({ type: 'magiclink' })` → `verifyOtp({ token_hash, type: 'email' })`でsessionを発行し、`@supabase/ssr`のcookieへ書く。メールプロバイダーは無効化する。詳細・根拠・未検証事項は`docs/decisions/0001-pin-session-issuance.md`（承認済み）
 - `tests/integration/auth-session-issuance.test.ts`（11件）と`vitest.integration.config.mts`、`npm run test:integration`（通常の`npm test`からは除外）。接続先が`127.0.0.1` / `localhost`以外なら拒否
 - CI `auth / session issuance (email provider disabled|enabled)`ジョブ（matrix）：ランナーのDockerでローカルSupabase（Auth・API・PostgREST・Mailpit）を起動。GitHub Secrets・hosted Supabase不使用。ジョブは必須チェックには未追加
 - `supabase/config.toml`：ローカルの`otp_expiry = 20`（期限切れ拒否の確認用。hostedの値ではない）
@@ -134,7 +143,7 @@ UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ
 
 ## 既知の問題・要確認
 
-- **Gate 1.1の欠陥（PR #3レビュー、上記）は未修正**：`REPEATABLE READ`以上で2人上限を超えられる。修正は新規migration（`create or replace function`）で行い、回帰テストを追加する。ユーザーの指示待ち。
+- （解決済み）Gate 1.1の欠陥（REPEATABLE READ以上で2人上限を超えられる）は2026-09-27に修正。既存migrationは書き換えず、関数を差し替える新規migrationを追加した。
 - （解決済み）**Gate 1.1のDBテストはSupabase公式のローカル環境では未実行**：この環境にDocker（およびDockerランタイム）がなく`supabase start` / `supabase test db` / `supabase db reset`を実行できなかった。代替として、Homebrewの`postgresql@17`（17.11）とpgTAP 1.3.4（本家v1.3.4をソースからビルド）で使い捨てのローカルDB（作業ディレクトリ内、`127.0.0.1:54399`）を作り、Supabaseのロール（`anon` / `authenticated` / `service_role`）・`auth.users`（`id`のみ）・`auth.uid()`・`public`の既定privileges・`extensions` schemaを最小限に再現したうえでmigration適用とテストを行った。実際のSupabaseイメージでは、`auth.users`の列構成、`auth.uid()`実装、既定privileges、pgTAPの導入場所が異なる可能性があるため、GitHub ActionsのDBジョブ（公式のSupabaseローカルDBイメージ）で`npm run db:test` / `npm run db:test:concurrency`を実行して確認する。
 - **CIのDBテスト（`db / rls policy tests`ジョブ）はPR #3の初回Actions実行で公式のSupabaseローカルDBに対して成功した（2026-09-26）**：`npx supabase db start`でmigration適用、`auth.users`が存在しFKが通る、`psql`利用可、pgTAP `Files=1, Tests=47, Result: PASS`、同時実行テストOK、DBジョブ所要約1分半。事前に懸念した4点（migration適用・`auth.users`・`psql`・所要時間）はすべて問題なし。MacへDockerは導入せず、GitHub Actionsランナーで実行する運用とする。
 - CIのDBジョブは追加Action不使用（`npm ci`で入る固定版Supabase CLIを`npx`で使う）、secretsなし、`contents: read`のみ。`supabase link` / `--linked` / `--db-url` / `--project-ref` / `db push`の混入を検出するGuard手順あり。hosted Supabaseには接続しない。
@@ -226,8 +235,8 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 
 ## 次の推奨作業
 
-- **ADR 0001の承認**（方式・メールプロバイダー無効化）とPR #4のマージ
-- **Gate 1.1の2人上限の修正**（REPEATABLE READ対応。更新方式の案：`FOR UPDATE`ではなく対象space行を`UPDATE`で触り、同時実行の競合を分離レベルに依らず検出する）を別PRで実施
+- 2人上限修正PRのCI確認・マージ
+- Gate 1.3：Authアカウント（固定2人）の開発環境bootstrap（新規登録なし）。ADR 0001の方針（パスワード無し・メールプロバイダー無効）に従う
 - hosted Developmentでの方式確認（Dev projectのAuth設定変更とsecret key利用が必要。ユーザー承認後）
 - Gate 1.1の差分レビュー（Codex）→ commit / PR
 - Gate 1.2：PIN認証後にSupabase Auth sessionを作る方式のDevelopment-only spike（`docs/development-plan.md`）。指示書で「次のGate 1.2作業（2 Auth accountsの開発環境bootstrap）」とされている場合は、`development-plan.md`の番号（1.2=spike、1.3=bootstrap）と作業指示書の呼び方を揃える

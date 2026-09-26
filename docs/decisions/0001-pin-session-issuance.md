@@ -1,6 +1,6 @@
 # ADR 0001: PIN認証後のSupabase Auth session発行方式
 
-- 状態: 提案（Gate 1.2 spikeの結果。ユーザー承認待ち）
+- 状態: 承認済み（2026-09-27、ユーザー承認。hosted Developmentでの確認は未実施）
 - 日付: 2026-09-26
 - 関連: `docs/architecture.md`「認証案」、`docs/development-plan.md` Gate 1.2 / 1.4、PR #4
 
@@ -8,7 +8,7 @@
 
 ユーザー選択＋個人PINで認証する（短い数字PINを許容）。PINをSupabase Authのpasswordとしてブラウザから直接送ると、Supabase Authのendpointはアプリを通さず直接呼べるため、アプリ側のユーザー単位lockoutを迂回できる。そこで「PINはサーバー側で検証・試行制限し、成功時だけサーバーがAuth sessionを発行する」方式が成立するかをspikeで確認した。独自JWTの署名や、PINを直接Authのpasswordにする方式は採らない（architecture.mdの方針）。
 
-## 決定（提案）
+## 決定
 
 **サーバー限定の `generateLink` + `verifyOtp` 方式を採用する。**
 
