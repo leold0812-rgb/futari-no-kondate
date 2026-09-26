@@ -2,6 +2,14 @@
 
 更新日: 2026-09-26（Gate 1.1追記）
 
+## PR #3 レビュー（2026-09-26）
+
+- 完了：`origin/main...HEAD` のmigration、RLSテスト、CI、仕様を確認。PostgreSQL 17.11の使い捨てローカルDBに実際のmigrationを適用し、`REPEATABLE READ`で同一spaceに3件登録できることを再現した（最終件数3、両transaction成功）。コード修正は未実施。
+- 未完了・既知の問題：`private.enforce_couple_space_member_limit()`はspace行を`FOR UPDATE`でロックするが、古いtransaction snapshotでの件数判定を防げない。2人上限を全分離レベルで保証する修正と、同条件の回帰テストが必要。hosted Development / Production DBは変更していない。
+- DB migration / 環境変数の変更：レビューによる変更なし。
+- テスト：`npm run lint` 成功、`npm run typecheck` 成功、`npm test` 5 files / 20 tests成功。公式SupabaseローカルDBテストは手元にDockerがないため未実行（PRの既存CI実行記録は下記）。
+- 次の推奨作業：上限チェックを分離レベルに依存しない方式へ修正し、並行transactionの回帰テストを追加してからPRを再確認する。
+
 ## 完了
 
 ### 設計フェーズ（既存）
@@ -26,7 +34,15 @@
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
-### Gate 1.1: CoupleSpace / profiles migrationとRLS（今回・未コミット）
+### Gate 1.2: PIN認証後のAuth session発行方式のspike（今回・PR #4）
+
+- 結論（提案）：サーバー限定の`auth.admin.generateLink({ type: 'magiclink' })` → `verifyOtp({ token_hash, type: 'email' })`でsessionを発行し、`@supabase/ssr`のcookieへ書く。メールプロバイダーは無効化する。詳細・根拠・未検証事項は`docs/decisions/0001-pin-session-issuance.md`（ユーザー承認待ち）
+- `tests/integration/auth-session-issuance.test.ts`（11件）と`vitest.integration.config.mts`、`npm run test:integration`（通常の`npm test`からは除外）。接続先が`127.0.0.1` / `localhost`以外なら拒否
+- CI `auth / session issuance (email provider disabled|enabled)`ジョブ（matrix）：ランナーのDockerでローカルSupabase（Auth・API・PostgREST・Mailpit）を起動。GitHub Secrets・hosted Supabase不使用。ジョブは必須チェックには未追加
+- `supabase/config.toml`：ローカルの`otp_expiry = 20`（期限切れ拒否の確認用。hostedの値ではない）
+- 実装していないもの：PIN保存・検証・試行制限・lockout（Gate 1.4）、ログイン画面（Gate 1.5）、`proxy.ts`（Gate 1.6）、Authアカウントのbootstrap（Gate 1.3）、hosted Developmentでの確認
+
+### Gate 1.1: CoupleSpace / profiles migrationとRLS（PR #3でマージ済み）
 
 作業ブランチ：`feat/gate-1-1-couplespace-rls`（origin/mainから作成。Codex更新済みの`docs/architecture.md` / `docs/product-spec.md` / `docs/development-plan.md`と新規`docs/tasks/phase-1-1-couplespace-rls.md`は未コミットのまま保持）。commit / push / deployはしていない。
 
@@ -118,7 +134,8 @@ UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ
 
 ## 既知の問題・要確認
 
-- **Gate 1.1のDBテストはSupabase公式のローカル環境では未実行**：この環境にDocker（およびDockerランタイム）がなく`supabase start` / `supabase test db` / `supabase db reset`を実行できなかった。代替として、Homebrewの`postgresql@17`（17.11）とpgTAP 1.3.4（本家v1.3.4をソースからビルド）で使い捨てのローカルDB（作業ディレクトリ内、`127.0.0.1:54399`）を作り、Supabaseのロール（`anon` / `authenticated` / `service_role`）・`auth.users`（`id`のみ）・`auth.uid()`・`public`の既定privileges・`extensions` schemaを最小限に再現したうえでmigration適用とテストを行った。実際のSupabaseイメージでは、`auth.users`の列構成、`auth.uid()`実装、既定privileges、pgTAPの導入場所が異なる可能性があるため、GitHub ActionsのDBジョブ（公式のSupabaseローカルDBイメージ）で`npm run db:test` / `npm run db:test:concurrency`を実行して確認する。
+- **Gate 1.1の欠陥（PR #3レビュー、上記）は未修正**：`REPEATABLE READ`以上で2人上限を超えられる。修正は新規migration（`create or replace function`）で行い、回帰テストを追加する。ユーザーの指示待ち。
+- （解決済み）**Gate 1.1のDBテストはSupabase公式のローカル環境では未実行**：この環境にDocker（およびDockerランタイム）がなく`supabase start` / `supabase test db` / `supabase db reset`を実行できなかった。代替として、Homebrewの`postgresql@17`（17.11）とpgTAP 1.3.4（本家v1.3.4をソースからビルド）で使い捨てのローカルDB（作業ディレクトリ内、`127.0.0.1:54399`）を作り、Supabaseのロール（`anon` / `authenticated` / `service_role`）・`auth.users`（`id`のみ）・`auth.uid()`・`public`の既定privileges・`extensions` schemaを最小限に再現したうえでmigration適用とテストを行った。実際のSupabaseイメージでは、`auth.users`の列構成、`auth.uid()`実装、既定privileges、pgTAPの導入場所が異なる可能性があるため、GitHub ActionsのDBジョブ（公式のSupabaseローカルDBイメージ）で`npm run db:test` / `npm run db:test:concurrency`を実行して確認する。
 - **CIのDBテスト（`db / rls policy tests`ジョブ）はPR #3の初回Actions実行で公式のSupabaseローカルDBに対して成功した（2026-09-26）**：`npx supabase db start`でmigration適用、`auth.users`が存在しFKが通る、`psql`利用可、pgTAP `Files=1, Tests=47, Result: PASS`、同時実行テストOK、DBジョブ所要約1分半。事前に懸念した4点（migration適用・`auth.users`・`psql`・所要時間）はすべて問題なし。MacへDockerは導入せず、GitHub Actionsランナーで実行する運用とする。
 - CIのDBジョブは追加Action不使用（`npm ci`で入る固定版Supabase CLIを`npx`で使う）、secretsなし、`contents: read`のみ。`supabase link` / `--linked` / `--db-url` / `--project-ref` / `db push`の混入を検出するGuard手順あり。hosted Supabaseには接続しない。
 - mainのルールセット`main: CI必須`（id 24036317）の必須チェックへ`db / rls policy tests`を追加済み（`lint / typecheck / test / build`と合わせて2つ必須、strict）。パスフィルタは付けない（必須チェックが実行されずマージが止まるため）。
@@ -152,6 +169,14 @@ Gate 1.1での変更なし（`.env.example`・Vercel環境変数とも変更し�
 Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」）。コード上の変数名に変更なし。Gate 0-1で`.env.example`を新規作成（値は空）：`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `CRON_SECRET`, `BLOB_READ_WRITE_TOKEN`。`lib/env/`から参照するが、Supabase clientを呼ぶ画面はまだないため、未設定でもbuild・起動できる。
 
 ## テスト結果
+
+### Gate 1.2（2026-09-26、PR #4のCI）
+
+- `auth / session issuance`：メールプロバイダー無効・有効の両matrixで統合テスト11/11成功（各約26秒）。実測：`verification_type=magiclink`、access token有効期間3600s、cookie名`sb-<ref>-auth-token`、匿名の`signInWithOtp`は有効設定で受理（メール送信キュー投入）・無効設定で`422 email_provider_disabled`、anon keyのAdmin APIは`403 not_admin`
+- 途中で判明：メールプロバイダー無効だと匿名のログイン要求が`email_provider_disabled`で断られるため、パスワード未設定を理由とする拒否を検証できていなかった → 有効設定でも実行し、`invalid_credentials`まで確認。`signUp`の拒否コードは設定に関係なく`signup_disabled`だった（当初の想定を修正）
+- `lint / typecheck / test / build` 成功（既存20件）、`db / rls policy tests` 成功
+- DockerイメージのpullでレジストリのRate limit（`toomanyrequests`）が発生し再試行されたが、最終的に成功。頻発する場合はキャッシュ・リトライを検討する
+- Macでは統合テストは実行できない（Docker不在）。CIで実行する
 
 ### Gate 1.1（2026-09-26）
 
@@ -201,7 +226,9 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 
 ## 次の推奨作業
 
-- PR #3のCodexレビュー → マージ
+- **ADR 0001の承認**（方式・メールプロバイダー無効化）とPR #4のマージ
+- **Gate 1.1の2人上限の修正**（REPEATABLE READ対応。更新方式の案：`FOR UPDATE`ではなく対象space行を`UPDATE`で触り、同時実行の競合を分離レベルに依らず検出する）を別PRで実施
+- hosted Developmentでの方式確認（Dev projectのAuth設定変更とsecret key利用が必要。ユーザー承認後）
 - Gate 1.1の差分レビュー（Codex）→ commit / PR
 - Gate 1.2：PIN認証後にSupabase Auth sessionを作る方式のDevelopment-only spike（`docs/development-plan.md`）。指示書で「次のGate 1.2作業（2 Auth accountsの開発環境bootstrap）」とされている場合は、`development-plan.md`の番号（1.2=spike、1.3=bootstrap）と作業指示書の呼び方を揃える
 - Gate 1で認証を入れる際に、Supabase session更新用の`proxy.ts`を追加する
