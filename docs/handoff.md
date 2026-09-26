@@ -2,6 +2,14 @@
 
 更新日: 2026-09-26（Gate 1.1追記）
 
+## PR #3 レビュー（2026-09-26）
+
+- 完了：`origin/main...HEAD` のmigration、RLSテスト、CI、仕様を確認。PostgreSQL 17.11の使い捨てローカルDBに実際のmigrationを適用し、`REPEATABLE READ`で同一spaceに3件登録できることを再現した（最終件数3、両transaction成功）。コード修正は未実施。
+- 未完了・既知の問題：`private.enforce_couple_space_member_limit()`はspace行を`FOR UPDATE`でロックするが、古いtransaction snapshotでの件数判定を防げない。2人上限を全分離レベルで保証する修正と、同条件の回帰テストが必要。hosted Development / Production DBは変更していない。
+- DB migration / 環境変数の変更：レビューによる変更なし。
+- テスト：`npm run lint` 成功、`npm run typecheck` 成功、`npm test` 5 files / 20 tests成功。公式SupabaseローカルDBテストは手元にDockerがないため未実行（PRの既存CI実行記録は下記）。
+- 次の推奨作業：上限チェックを分離レベルに依存しない方式へ修正し、並行transactionの回帰テストを追加してからPRを再確認する。
+
 ## 完了
 
 ### 設計フェーズ（既存）
