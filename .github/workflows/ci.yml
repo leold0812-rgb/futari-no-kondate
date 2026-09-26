@@ -59,3 +59,51 @@ jobs:
 
       - name: Check client bundle for server secrets
         run: npm run check:bundle
+
+  # Gate 1.1のDB（RLS / grants / 2人上限）テスト。
+  # ランナー上のDockerでSupabaseのローカルDBだけを起動して検証する。hosted Supabase（Development / Production）には
+  # 一切接続しない：認証情報・project ref・DB URL・GitHub Secretsを使わず、supabase link / --linked / db push も使わない。
+  db:
+    name: db / rls policy tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DO_NOT_TRACK: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Guard against remote database targets
+        # リモートDBを指す操作がpackage.jsonやDBスクリプトへ混入したら失敗させる
+        run: |
+          if grep -nE -e '--linked|--db-url|--project-ref|supabase (link|login|db push)' package.json scripts/db/*.sh; then
+            echo "::error::リモートのSupabaseを指す可能性のある記述があります。CIではローカルDBのみを使用します。"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        # Supabase CLI（package.jsonで固定したdevDependency）が入る。setup-cli等の追加Actionは使わない
+        run: npm ci
+
+      - name: Start local Supabase database
+        run: npx supabase db start
+
+      - name: Policy tests (pgTAP)
+        run: npm run db:test
+
+      - name: Concurrency test (2 connections)
+        run: npm run db:test:concurrency
+
+      - name: Show database logs on failure
+        if: failure()
+        run: |
+          docker ps -a
+          docker logs supabase_db_futari-no-kondate --tail 100
