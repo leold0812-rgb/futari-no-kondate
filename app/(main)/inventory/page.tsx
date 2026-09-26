@@ -46,10 +46,12 @@ export default async function InventoryPage({ searchParams }: PageProps<"/invent
 
       {notice ? <Alert tone={notice.tone}>{notice.text}</Alert> : null}
 
-      <details className={styles.details} open={entries.length === 0}>
-        <summary>在庫を手で追加する</summary>
-        <AddInventoryForm action={addInventoryAction} ingredientNames={ingredients.map((i) => i.name)} today={today} />
-      </details>
+      <AddInventoryForm
+        action={addInventoryAction}
+        ingredientNames={ingredients.map((i) => i.name)}
+        today={today}
+        defaultOpen={entries.length === 0}
+      />
 
       {entries.length === 0 ? (
         <EmptyState

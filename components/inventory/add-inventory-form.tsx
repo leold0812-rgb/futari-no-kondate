@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, startTransition, type FormEvent } from "react";
+import { useActionState, useEffect, useRef, useState, startTransition, type FormEvent } from "react";
 import type { InventoryFormState } from "@/app/(main)/inventory/actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -11,11 +11,14 @@ type Props = {
   action: (state: InventoryFormState, formData: FormData) => Promise<InventoryFormState>;
   ingredientNames: string[];
   today: string;
+  /** 最初に開いておくか（在庫が空のとき）。追加後の再描画で閉じないよう、開閉はこの部品が持つ */
+  defaultOpen: boolean;
 };
 
 /** 在庫の手入力。材料名は既存の材料から候補を出し、分量は「300g」「2個」のように1欄で入力する */
-export function AddInventoryForm({ action, ingredientNames, today }: Props) {
+export function AddInventoryForm({ action, ingredientNames, today, defaultOpen }: Props) {
   const [state, formAction, pending] = useActionState(action, {});
+  const [open, setOpen] = useState(defaultOpen);
   const formRef = useRef<HTMLFormElement>(null);
 
   // 保存できたときだけ入力を空にする（失敗時は入力を残して理由を示す）
@@ -30,6 +33,8 @@ export function AddInventoryForm({ action, ingredientNames, today }: Props) {
   }
 
   return (
+    <details className={styles.details} open={open} onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary>在庫を手で追加する</summary>
     <form ref={formRef} onSubmit={handleSubmit} className={styles.addForm}>
       <div className={styles.addFields}>
         <label className={styles.field}>
@@ -56,5 +61,6 @@ export function AddInventoryForm({ action, ingredientNames, today }: Props) {
         {pending ? "追加しています…" : "在庫に追加"}
       </Button>
     </form>
+    </details>
   );
 }
