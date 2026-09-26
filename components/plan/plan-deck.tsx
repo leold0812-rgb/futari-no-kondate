@@ -10,9 +10,11 @@ import styles from "./plan.module.css";
 
 type Props = {
   candidates: CandidateView[];
+  /** 計画の版。判断のたびにサーバーから新しい版を受け取り、次の判断で渡す（古い画面からの判断を防ぐ） */
+  initialVersion: number;
   target: number;
   week: string;
-  decideAction: (candidateId: string, decision: Decision) => Promise<{ error?: string }>;
+  decideAction: (candidateId: string, decision: Decision, expectedVersion: number) => Promise<{ error?: string; version?: number }>;
   regenerateSlot: React.ReactNode;
 };
 
@@ -22,7 +24,8 @@ const SWIPE_THRESHOLD = 80;
  * 10候補を1枚ずつ判断する。右（作る）/ 左（スキップ）のスワイプに加え、ボタン・矢印キーでも操作でき、直前の判断は戻せる。
  * 判断はすぐ画面に反映し、裏で保存する（失敗したら元に戻して理由を出す）。
  */
-export function PlanDeck({ candidates, target, week, decideAction, regenerateSlot }: Props) {
+export function PlanDeck({ candidates, initialVersion, target, week, decideAction, regenerateSlot }: Props) {
+  const [version, setVersion] = useState(initialVersion);
   const [decisions, setDecisions] = useState<Record<string, Decision>>(() =>
     Object.fromEntries(candidates.map((c) => [c.id, c.decision])),
   );
@@ -49,7 +52,10 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
     setDecisions((d) => ({ ...d, [candidate.id]: decision }));
     setHistory((h) => [...h, candidate.id]);
     setDragX(0);
-    const result = await decideAction(candidate.id, decision).catch(() => ({ error: "通信に失敗しました。" }));
+    const result: { error?: string; version?: number } = await decideAction(candidate.id, decision, version).catch(() => ({
+      error: "通信に失敗しました。",
+    }));
+    if (result.version) setVersion(result.version);
     if (result.error) {
       setDecisions((d) => ({ ...d, [candidate.id]: "PENDING" }));
       setHistory((h) => h.filter((id) => id !== candidate.id));
@@ -66,7 +72,10 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
     setError(null);
     setHistory((h) => h.slice(0, -1));
     setDecisions((d) => ({ ...d, [last]: "PENDING" }));
-    const result = await decideAction(last, "PENDING").catch(() => ({ error: "通信に失敗しました。" }));
+    const result: { error?: string; version?: number } = await decideAction(last, "PENDING", version).catch(() => ({
+      error: "通信に失敗しました。",
+    }));
+    if (result.version) setVersion(result.version);
     if (result.error) {
       setDecisions((d) => ({ ...d, [last]: previous }));
       setHistory((h) => [...h, last]);
@@ -113,9 +122,15 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
       {acceptedCount >= target ? (
         <Alert tone="success" title={`${target}品そろいました`}>
           <p>確認して決めると、副菜・汁物と買い物リストの準備に進めます。</p>
-          <Link href={`/plan/confirm?week=${week}`} className={buttonClassName({ size: "large", block: true })}>
-            {target}品を確認する
-          </Link>
+          {saving ? (
+            <span className={buttonClassName({ size: "large", block: true })} aria-disabled="true">
+              保存しています…
+            </span>
+          ) : (
+            <Link href={`/plan/confirm?week=${week}`} className={buttonClassName({ size: "large", block: true })}>
+              {target}品を確認する
+            </Link>
+          )}
         </Alert>
       ) : null}
 
@@ -196,7 +211,7 @@ export function PlanDeck({ candidates, target, week, decideAction, regenerateSlo
         <Link href={`/plan/add?week=${week}`} className={buttonClassName({ variant: "ghost", size: "small" })}>
           レシピから追加
         </Link>
-        {acceptedCount > 0 && acceptedCount < target ? (
+        {acceptedCount > 0 && acceptedCount < target && !saving ? (
           <Link href={`/plan/confirm?week=${week}`} className={buttonClassName({ variant: "ghost", size: "small" })}>
             選んだ料理を見る
           </Link>

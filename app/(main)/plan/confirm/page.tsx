@@ -15,7 +15,8 @@ export const metadata: Metadata = { title: "主菜を確認 | ふたりの献立
 
 export default async function ConfirmPlanPage({ searchParams }: PageProps<"/plan/confirm">) {
   await requireMember();
-  const week = resolvePlanWeek((await searchParams).week);
+  const params = await searchParams;
+  const week = resolvePlanWeek(params.week);
   const supabase = await createSupabaseServerClient();
   const plan = await getWeeklyPlan(supabase, await ensureWeeklyPlan(supabase, week));
   const accepted = (plan?.candidates ?? [])
@@ -33,6 +34,9 @@ export default async function ConfirmPlanPage({ searchParams }: PageProps<"/plan
           </LinkButton>
         }
       />
+      {params.error === "conflict" ? (
+        <Alert tone="error">相手が同時に候補を選び直しました。最新の状態を表示しています。もう一度お試しください。</Alert>
+      ) : null}
       {plan?.status !== "DRAFT" ? (
         <Alert tone="success" title="この週の献立は決定済みです">
           <LinkButton href="/" block>
@@ -52,7 +56,7 @@ export default async function ConfirmPlanPage({ searchParams }: PageProps<"/plan
                     {c.cookingMinutes ? `・約${c.cookingMinutes}分` : ""}
                   </p>
                 </div>
-                <form action={removeAcceptedAction.bind(null, c.id, week)}>
+                <form action={removeAcceptedAction.bind(null, c.id, week, plan.version)}>
                   <button type="submit" className={buttonClassName({ variant: "ghost", size: "small" })} aria-label={`${c.name}を外す`}>
                     外す
                   </button>

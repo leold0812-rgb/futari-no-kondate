@@ -281,6 +281,15 @@ begin
   end if;
   update public.weekly_plans as p set version = p.version + 1 where p.id = v_run.weekly_plan_id;
 
+  -- 手動でも主菜・READY・未削除のレシピだけ（「もう作らない」の評価があっても手動なら可）
+  if not exists (
+    select 1 from public.recipes as r
+    where r.id = p_recipe_id and r.couple_space_id = v_run.couple_space_id
+      and r.dish_type = 'MAIN' and r.status = 'READY' and r.deleted_at is null
+  ) then
+    raise exception 'recipe cannot be a main dish candidate' using errcode = '23503';
+  end if;
+
   select c.id into v_id from public.recommendation_candidates as c where c.run_id = p_run_id and c.recipe_id = p_recipe_id;
   if v_id is not null then
     update public.recommendation_candidates as c
@@ -312,7 +321,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 候補の判断（作る / スキップ / 未判断へ戻す）
 -- ---------------------------------------------------------------------------
-create function public.decide_candidate(p_candidate_id uuid, p_decision text)
+create function public.decide_candidate(p_candidate_id uuid, p_decision text, p_expected_version integer)
 returns integer
 language plpgsql
 security definer
@@ -338,6 +347,10 @@ begin
   select * into v_plan from public.weekly_plans as p where p.id = v_run.weekly_plan_id for update;
   if v_plan.status <> 'DRAFT' then
     raise exception 'weekly plan is already confirmed' using errcode = '55000';
+  end if;
+  -- 古い画面（相手の判断・出し直しの前）からの判断は拒否する
+  if v_plan.version <> p_expected_version then
+    raise exception 'weekly plan was changed by someone else' using errcode = '40001';
   end if;
   select r.id into v_latest from public.recommendation_runs as r
   where r.weekly_plan_id = v_plan.id order by r.generated_at desc, r.id desc limit 1;
@@ -406,8 +419,8 @@ $$;
 revoke all on function public.ensure_weekly_plan(date) from public, anon;
 revoke all on function public.save_recommendation_run(uuid, text, jsonb, jsonb, jsonb) from public, anon;
 revoke all on function public.confirm_weekly_plan(uuid, integer) from public, anon;
-revoke all on function public.decide_candidate(uuid, text) from public, anon;
-grant execute on function public.decide_candidate(uuid, text) to authenticated;
+revoke all on function public.decide_candidate(uuid, text, integer) from public, anon;
+grant execute on function public.decide_candidate(uuid, text, integer) to authenticated;
 revoke all on function public.add_manual_candidate(uuid, uuid) from public, anon;
 grant execute on function public.add_manual_candidate(uuid, uuid) to authenticated;
 grant execute on function public.ensure_weekly_plan(date) to authenticated;

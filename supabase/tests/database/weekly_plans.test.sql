@@ -1,7 +1,7 @@
 -- Gate 5: 週間計画・推薦の保存・判断・確定
 begin;
 
-select plan(25);
+select plan(28);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -51,8 +51,10 @@ select throws_ok(
   '別spaceのレシピは候補にできない'
 );
 
-select public.decide_candidate(id, 'ACCEPTED') from public.recommendation_candidates where position <= 3 order by position;
-select public.decide_candidate(id, 'SKIPPED') from public.recommendation_candidates where position = 4;
+select public.decide_candidate((select id from public.recommendation_candidates where position = 1), 'ACCEPTED', (select version from public.weekly_plans where id = (select id from ids where label = 'plan')));
+select public.decide_candidate((select id from public.recommendation_candidates where position = 2), 'ACCEPTED', (select version from public.weekly_plans where id = (select id from ids where label = 'plan')));
+select public.decide_candidate((select id from public.recommendation_candidates where position = 3), 'ACCEPTED', (select version from public.weekly_plans where id = (select id from ids where label = 'plan')));
+select public.decide_candidate((select id from public.recommendation_candidates where position = 4), 'SKIPPED', (select version from public.weekly_plans where id = (select id from ids where label = 'plan')));
 select is((select count(*)::int from public.recommendation_candidates where decision = 'ACCEPTED'), 3, '判断を保存できる');
 select is(
   (select row(decided_by = auth.uid(), decided_at is not null)::text from public.recommendation_candidates where position = 1),
@@ -60,7 +62,7 @@ select is(
   '判断した人と時刻が残る'
 );
 select throws_ok(
-  $$select public.decide_candidate((select id from public.recommendation_candidates limit 1), 'MAYBE')$$,
+  $$select public.decide_candidate((select id from public.recommendation_candidates limit 1), 'MAYBE', 1)$$,
   '22023',
   null,
   '判断は決められた値だけ'
@@ -76,6 +78,24 @@ select is(
   row('ACCEPTED', true)::text,
   '手動追加は採用済み・手動として記録される'
 );
+reset role;
+insert into public.recipes (id, couple_space_id, name, dish_type) values
+  ('20000000-0000-4000-8000-000000000051', '10000000-0000-4000-8000-000000000001', 'fixture-side', 'SIDE');
+insert into public.recipes (id, couple_space_id, name, status) values
+  ('20000000-0000-4000-8000-000000000052', '10000000-0000-4000-8000-000000000001', 'fixture-url-only', 'URL_ONLY');
+set local role authenticated;
+select throws_ok(
+  $$select public.add_manual_candidate((select id from ids where label = 'run'), '20000000-0000-4000-8000-000000000051')$$,
+  '23503',
+  null,
+  '副菜は主菜の候補に手動追加できない'
+);
+select throws_ok(
+  $$select public.add_manual_candidate((select id from ids where label = 'run'), '20000000-0000-4000-8000-000000000052')$$,
+  '23503',
+  null,
+  'URLだけのレシピは主菜の候補に手動追加できない'
+);
 select throws_ok(
   $$select public.add_manual_candidate((select id from ids where label = 'run'), '20000000-0000-4000-8000-000000000099')$$,
   '23503',
@@ -89,7 +109,13 @@ select throws_ok(
   null,
   '採用が5品でなければ確定できない（いま4品）'
 );
-select public.decide_candidate(id, 'ACCEPTED') from public.recommendation_candidates where position = 5;
+select throws_ok(
+  $$select public.decide_candidate((select id from public.recommendation_candidates where position = 5), 'ACCEPTED', 1)$$,
+  '40001',
+  null,
+  '古い版（相手の判断より前の画面）からの判断は拒否する'
+);
+select public.decide_candidate((select id from public.recommendation_candidates where position = 5), 'ACCEPTED', (select version from public.weekly_plans where id = (select id from ids where label = 'plan')));
 select throws_ok(
   $$select public.confirm_weekly_plan((select id from ids where label = 'plan'), 1)$$,
   '40001',
@@ -113,7 +139,7 @@ select is(
 );
 select is((select count(*)::int from public.meal_sets), 5, '再送でも献立セットは増えない');
 select throws_ok(
-  $$select public.decide_candidate((select id from public.recommendation_candidates where position = 6), 'ACCEPTED')$$,
+  $$select public.decide_candidate((select id from public.recommendation_candidates where position = 6), 'ACCEPTED', (select version from public.weekly_plans where id = (select id from ids where label = 'plan')))$$,
   '55000',
   null,
   '確定後は判断を変えられない'
@@ -135,7 +161,7 @@ insert into ids values ('old-run', public.save_recommendation_run((select id fro
 select public.save_recommendation_run((select id from ids where label = 'next-plan'), 'weekly-v0.1', '{}', '[]',
   '[{"recipe_id":"20000000-0000-4000-8000-000000000002"}]');
 select throws_ok(
-  $$select public.decide_candidate((select id from public.recommendation_candidates where run_id = (select id from ids where label = 'old-run')), 'ACCEPTED')$$,
+  $$select public.decide_candidate((select id from public.recommendation_candidates where run_id = (select id from ids where label = 'old-run')), 'ACCEPTED', (select version from public.weekly_plans where id = (select id from ids where label = 'next-plan')))$$,
   '40001',
   null,
   '出し直す前の古い候補は判断できない'

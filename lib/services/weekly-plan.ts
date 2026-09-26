@@ -222,12 +222,22 @@ export async function generateCandidates(supabase: SupabaseClient, planId: strin
 }
 
 /** 判断を保存する（DB関数が計画をロックし、DRAFT・最新の候補であることを確かめて版を進める） */
-export async function decideCandidate(supabase: SupabaseClient, candidateId: string, decision: Decision): Promise<void> {
-  const { error } = await supabase.rpc("decide_candidate", { p_candidate_id: candidateId, p_decision: decision });
+export async function decideCandidate(
+  supabase: SupabaseClient,
+  candidateId: string,
+  decision: Decision,
+  expectedVersion: number,
+): Promise<number> {
+  const { data, error } = await supabase.rpc("decide_candidate", {
+    p_candidate_id: candidateId,
+    p_decision: decision,
+    p_expected_version: expectedVersion,
+  });
   if (error?.code === "55000" || error?.code === "40001") {
-    throw new PlanConflictError("献立がすでに決定されたか、候補が出し直されています。画面を開き直してください。");
+    throw new PlanConflictError("相手が先に候補を選んだか、献立が決まりました。画面を開き直してください。");
   }
   if (error) throw new Error(`判断を保存できませんでした: ${error.message}`);
+  return data as number;
 }
 
 export async function addManualCandidate(supabase: SupabaseClient, runId: string, recipeId: string): Promise<void> {

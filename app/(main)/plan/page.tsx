@@ -93,6 +93,7 @@ export default async function PlanPage({ searchParams }: PageProps<"/plan">) {
       <PlanDeck
         key={plan.runId}
         candidates={plan.candidates}
+        initialVersion={plan.version}
         target={MAIN_DISHES_PER_WEEK}
         week={week}
         decideAction={decideAction}

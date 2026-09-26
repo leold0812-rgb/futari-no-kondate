@@ -47,24 +47,31 @@ export async function regenerateCandidatesAction(planId: string, week: string): 
   redirect(planPath(resolvePlanWeek(week)));
 }
 
-export async function decideAction(candidateId: string, decision: Decision): Promise<{ error?: string }> {
+/** 判断を保存し、新しい版を返す（古い画面からの判断は拒否される） */
+export async function decideAction(
+  candidateId: string,
+  decision: Decision,
+  expectedVersion: number,
+): Promise<{ error?: string; version?: number }> {
   await requireMember();
-  if (!UUID_PATTERN.test(candidateId) || !DECISIONS.includes(decision)) return { error: "判断を保存できませんでした。" };
+  if (!UUID_PATTERN.test(candidateId) || !DECISIONS.includes(decision) || !Number.isInteger(expectedVersion)) {
+    return { error: "判断を保存できませんでした。" };
+  }
   try {
-    await decideCandidate(await createSupabaseServerClient(), candidateId, decision);
+    const version = await decideCandidate(await createSupabaseServerClient(), candidateId, decision, expectedVersion);
+    return { version };
   } catch (error) {
     if (error instanceof PlanConflictError) return { error: error.message };
     return { error: "判断を保存できませんでした。通信状態を確認して、もう一度お試しください。" };
   }
-  return {};
 }
 
-export async function removeAcceptedAction(candidateId: string, week: string): Promise<void> {
+export async function removeAcceptedAction(candidateId: string, week: string, expectedVersion: number): Promise<void> {
   await requireMember();
   if (!UUID_PATTERN.test(candidateId)) return;
-  await decideCandidate(await createSupabaseServerClient(), candidateId, "SKIPPED").catch(() => undefined);
+  const result = await decideCandidate(await createSupabaseServerClient(), candidateId, "SKIPPED", expectedVersion).catch(() => null);
   revalidatePath("/plan/confirm");
-  redirect(`/plan/confirm?week=${resolvePlanWeek(week)}`);
+  redirect(`/plan/confirm?week=${resolvePlanWeek(week)}${result === null ? "&error=conflict" : ""}`);
 }
 
 export async function addManualAction(runId: string, recipeId: string, week: string): Promise<void> {
