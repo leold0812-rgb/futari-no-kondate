@@ -41,6 +41,7 @@
 12. E2EはPlaywright（devDependency `@playwright/test` 1.63.0、完全固定）でCIのローカルSupabaseに対して実行し、画面のスクリーンショットをartifactに残す / MacにDockerが無く、画面の動作確認をCIで行う必要があるため。bundleへの影響なし。
 13. PRのマージは分類器に拒否されたため、Gateごとのブランチを積み重ね（stacked PR）、最後にユーザーが順にマージする / ユーザー承認なしのマージはできないため。
 14. `.env.example`（値は空）はClaudeの権限設定で編集できないため、`PIN_PEPPER=`の行追加はユーザー作業として残す。
+15. PIN照合の対象はprofileとPIN登録のある利用者だけにし、それ以外のIDでは試行行を作らず照合もしない。1日以上前の送信元記録は自動削除 / Codexレビュー（PR #7 Critical）の未認証DoS指摘への対応。
 
 ## 判断ログ（最後にユーザーへ開示する）
 

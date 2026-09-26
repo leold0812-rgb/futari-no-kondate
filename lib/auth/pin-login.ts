@@ -15,6 +15,7 @@ export type PinLoginFailure =
   | { ok: false; reason: "invalid_input" }
   | { ok: false; reason: "wrong_pin" }
   | { ok: false; reason: "locked"; retryAfterSeconds: number }
+  | { ok: false; reason: "not_ready" }
   | { ok: false; reason: "unavailable" };
 
 export type PinLoginResult = { ok: true } | PinLoginFailure;
@@ -42,7 +43,9 @@ export async function loginWithPin(input: PinLoginInput): Promise<PinLoginResult
     .single<{ allowed: boolean; retry_after_seconds: number; pin_hash: string | null }>();
   if (beginError || !attempt) return { ok: false, reason: "unavailable" };
   if (!attempt.allowed) {
-    return { ok: false, reason: "locked", retryAfterSeconds: Math.max(1, attempt.retry_after_seconds) };
+    // 待ち時間0は照合の対象外（profileが無い・PIN未登録）。scryptは実行しない
+    if (attempt.retry_after_seconds <= 0) return { ok: false, reason: "not_ready" };
+    return { ok: false, reason: "locked", retryAfterSeconds: attempt.retry_after_seconds };
   }
 
   const matched = await verifyPin(pin, pepper, attempt.pin_hash);
@@ -77,6 +80,8 @@ export function describeLoginFailure(failure: PinLoginFailure): string {
       const minutes = Math.ceil(failure.retryAfterSeconds / 60);
       return `間違いが続いたため、ログインを一時的に止めています。約${minutes}分後にもう一度お試しください。`;
     }
+    case "not_ready":
+      return "この名前はまだログインの準備ができていません（PIN未設定）。管理者にPINの設定を依頼してください。";
     case "unavailable":
       return "ログイン処理を完了できませんでした。通信状態を確認して、少し待ってからもう一度お試しください。";
   }

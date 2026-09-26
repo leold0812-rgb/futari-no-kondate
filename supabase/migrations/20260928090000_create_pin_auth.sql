@@ -7,7 +7,8 @@
 --   * 試行は「検証前に予約」する。並行した試行もすべて1回として数えるため、同時送信で制限を回避できない。
 --   * 制限:
 --       アカウント単位: 最後の成功以降の連続試行5回でロック。ロック時間は15分→30分→60分（上限60分）。成功でリセット。
---       送信元単位: 1時間の固定windowで20回を超えたら1時間ロック（成功も数える）。送信元はIPのHMAC（生IPは保存しない）。
+--       送信元単位: 1時間の固定windowで20回を超えたら1時間ロック（成功・対象外IDも数える）。送信元はIPのHMAC（生IPは保存しない）。
+--   * 照合の対象はprofileとPIN登録のある利用者だけ。任意のIDで行を作らせない。1日以上前の送信元記録は自動で削除する。
 --   * PINそのもの・IPアドレスは保存しない。
 
 -- ---------------------------------------------------------------------------
@@ -48,8 +49,9 @@ revoke all on table private.login_throttles from public, anon, authenticated, se
 -- 試行の予約（検証前に呼ぶ）
 -- ---------------------------------------------------------------------------
 -- 戻り値:
---   allowed = false: ロック中。retry_after_seconds 秒後に再試行できる。pin_hashは返さない
---   allowed = true : 1回分を予約済み。pin_hash（未設定ならnull）でサーバーが検証する
+--   allowed = false, retry_after_seconds > 0: ロック中。その秒数後に再試行できる
+--   allowed = false, retry_after_seconds = 0: 照合の対象外（profileが無い・PIN未登録）。照合しない
+--   allowed = true : 1回分を予約済み。pin_hashでサーバーが照合する
 create function public.pin_login_begin(p_user_id uuid, p_source text)
 returns table (allowed boolean, retry_after_seconds integer, pin_hash text)
 language plpgsql
@@ -58,6 +60,7 @@ set search_path = ''
 as $$
 declare
   v_now timestamp with time zone := pg_catalog.now();
+  v_eligible boolean;
   v_account private.login_throttles;
   v_source private.login_throttles;
   v_wait integer;
@@ -66,16 +69,34 @@ begin
     raise exception 'invalid pin_login_begin arguments' using errcode = '22023';
   end if;
 
+  -- 1日以上前の送信元記録（ロック中を除く）を片付け、行が溜まり続けないようにする
+  delete from private.login_throttles as t
+  where t.scope = 'source'
+    and t.window_started_at < v_now - interval '1 day'
+    and (t.locked_until is null or t.locked_until < v_now);
+
+  -- 照合の対象は「profileがありPINを登録済み」の利用者だけ。それ以外のIDではアカウント行を作らず、照合もさせない
+  v_eligible := exists (
+    select 1
+    from public.profiles as p
+    join private.pin_credentials as c on c.user_id = p.id
+    where p.id = p_user_id
+  );
+
+  if v_eligible then
+    insert into private.login_throttles (scope, subject)
+    values ('account', p_user_id::text)
+    on conflict do nothing;
+    -- 行ロックは常に account → source の順で取る（deadlockしない）
+    select * into strict v_account
+    from private.login_throttles as t
+    where t.scope = 'account' and t.subject = p_user_id::text
+    for update;
+  end if;
+
   insert into private.login_throttles (scope, subject)
-  values ('account', p_user_id::text), ('source', p_source)
+  values ('source', p_source)
   on conflict do nothing;
-
-  -- 行ロックは常に account → source の順で取る（deadlockしない）
-  select * into strict v_account
-  from private.login_throttles as t
-  where t.scope = 'account' and t.subject = p_user_id::text
-  for update;
-
   select * into strict v_source
   from private.login_throttles as t
   where t.scope = 'source' and t.subject = p_source
@@ -90,7 +111,7 @@ begin
     return;
   end if;
 
-  -- 送信元: 1時間の固定window
+  -- 送信元: 1時間の固定window（対象外IDへの要求も数える）
   if v_source.window_started_at <= v_now - interval '1 hour' then
     v_source.attempt_count := 0;
     v_source.window_started_at := v_now;
@@ -100,6 +121,19 @@ begin
     v_source.locked_until := v_now + interval '1 hour';
     v_source.attempt_count := 0;
     v_source.window_started_at := v_now;
+  end if;
+
+  update private.login_throttles as t
+  set attempt_count = v_source.attempt_count,
+      window_started_at = v_source.window_started_at,
+      locked_until = v_source.locked_until,
+      updated_at = v_now
+  where t.scope = 'source' and t.subject = p_source;
+
+  if not v_eligible then
+    -- allowed = false かつ retry_after_seconds = 0 は「ログインの準備ができていない（PIN未設定など）」
+    return query select false, 0, null::text;
+    return;
   end if;
 
   -- アカウント: 最後の成功以降の連続試行（5回目でロックを設定。5回目が成功すればsucceededで解除される）
@@ -119,13 +153,6 @@ begin
       lockout_count = v_account.lockout_count,
       updated_at = v_now
   where t.scope = 'account' and t.subject = p_user_id::text;
-
-  update private.login_throttles as t
-  set attempt_count = v_source.attempt_count,
-      window_started_at = v_source.window_started_at,
-      locked_until = v_source.locked_until,
-      updated_at = v_now
-  where t.scope = 'source' and t.subject = p_source;
 
   return query
   select true, 0, (select c.pin_hash from private.pin_credentials as c where c.user_id = p_user_id);

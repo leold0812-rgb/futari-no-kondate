@@ -3,16 +3,21 @@
 
 begin;
 
-select plan(27);
+select plan(31);
 
+-- a1, a2: 同じspace（PINあり） / a3: profileなし / a4: profileあり・PIN未登録
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-0000000000a1'),
   ('00000000-0000-4000-8000-0000000000a2'),
-  ('00000000-0000-4000-8000-0000000000a3');
-insert into public.couple_spaces (id) values ('10000000-0000-4000-8000-0000000000f1');
+  ('00000000-0000-4000-8000-0000000000a3'),
+  ('00000000-0000-4000-8000-0000000000a4');
+insert into public.couple_spaces (id) values
+  ('10000000-0000-4000-8000-0000000000f1'),
+  ('10000000-0000-4000-8000-0000000000f2');
 insert into public.profiles (id, couple_space_id, display_name) values
   ('00000000-0000-4000-8000-0000000000a1', '10000000-0000-4000-8000-0000000000f1', 'fixture-a'),
-  ('00000000-0000-4000-8000-0000000000a2', '10000000-0000-4000-8000-0000000000f1', 'fixture-b');
+  ('00000000-0000-4000-8000-0000000000a2', '10000000-0000-4000-8000-0000000000f1', 'fixture-b'),
+  ('00000000-0000-4000-8000-0000000000a4', '10000000-0000-4000-8000-0000000000f2', 'fixture-d');
 
 -- ---------------------------------------------------------------------------
 -- 権限: テーブルは誰も直接触れない。関数はservice_roleだけが実行できる
@@ -49,6 +54,43 @@ select throws_ok(
   null,
   'scrypt形式以外（平文など）は保存できない'
 );
+select public.pin_set('00000000-0000-4000-8000-0000000000a2', 'scrypt$1$32768$8$1$c2FsdA==$Yg==');
+
+-- ---------------------------------------------------------------------------
+-- 照合の対象外（profileなし・PIN未登録）は行を作らず、照合もさせない
+-- ---------------------------------------------------------------------------
+select is(
+  (select row(allowed, retry_after_seconds, pin_hash)::text
+   from public.pin_login_begin('00000000-0000-4000-8000-0000000000a3', 'source-x')),
+  row(false, 0, null::text)::text,
+  'profileの無いIDは照合の対象外（allowed=false・待ち時間0）'
+);
+select is(
+  (select row(allowed, retry_after_seconds, pin_hash)::text
+   from public.pin_login_begin('00000000-0000-4000-8000-0000000000a4', 'source-x')),
+  row(false, 0, null::text)::text,
+  'PIN未登録の利用者も照合の対象外'
+);
+reset role;
+select is(
+  (select count(*)::int from private.login_throttles where scope = 'account'
+     and subject in ('00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a4')),
+  0,
+  '対象外のIDではアカウントの試行行を作らない'
+);
+insert into private.login_throttles (scope, subject, attempt_count, window_started_at)
+values ('source', 'stale-source', 3, now() - interval '2 days');
+set local role service_role;
+select public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-0');
+reset role;
+select is(
+  (select count(*)::int from private.login_throttles where scope = 'source' and subject = 'stale-source'),
+  0,
+  '1日以上前の送信元記録は次の試行時に削除される'
+);
+reset role;
+update private.login_throttles set attempt_count = 0 where scope = 'account';
+set local role service_role;
 
 -- ---------------------------------------------------------------------------
 -- アカウント単位: 連続5回でロック

@@ -134,6 +134,19 @@ describe("PINログイン", () => {
     expect(result).toEqual({ ok: true });
   });
 
+  it("PIN未登録・profileの無いIDは照合せずに「準備ができていない」を返す", async () => {
+    const { data } = await admin.auth.admin.createUser({
+      email: `no-pin-${randomUUID()}@futari-no-kondate.invalid`,
+      email_confirm: true,
+    });
+    userIds.push(data.user!.id);
+    const { client } = newSessionClient();
+    const result = await loginWithPin({ admin, sessionClient: client, pepper, userId: data.user!.id, pin: PIN_A, sourceKey: source("8") });
+    expect(result).toEqual({ ok: false, reason: "not_ready" });
+    const random = await loginWithPin({ admin, sessionClient: client, pepper, userId: randomUUID(), pin: PIN_A, sourceKey: source("8") });
+    expect(random).toEqual({ ok: false, reason: "not_ready" });
+  });
+
   it("PINハッシュと試行制限はブラウザ側から触れない", async () => {
     const anon = createAnonClient(env);
     const begin = await anon.rpc("pin_login_begin", { p_user_id: userA, p_source: "x" });
