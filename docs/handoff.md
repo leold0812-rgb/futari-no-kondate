@@ -82,10 +82,25 @@
 
 UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ画面から呼ばれていないため、現時点のclient bundleには含まれない。
 
+### Gate 0-5: Development / Production設定手順
+
+- `docs/development-environments.md`を作成。VercelのDevelopment / Preview / ProductionとSupabase Development / Productionを分離する対応表、ローカル設定、CI、漏えい時の対応を記載
+- 今の段階では使わないservice role / OpenAI / Cron / Blobの秘密値を登録しない方針を明記
+- READMEとアーキテクチャの環境分離表現をVercel環境の実態に合わせて更新
+- 公式文書で確認した運用条件を追記：Vercel Node.js 24.x、Git Fork Protection維持（public repoのため）、Sensitive変数はProduction/Previewのみ作成可、Supabase Free planの無料project上限2（Dev＋Prodで上限）
+
+#### 実環境の設定（2026-09-26）
+
+- Supabase：`futari-no-kondate-dev` / `futari-no-kondate-prod`（ともにap-northeast-1、Free plan）はユーザーが作成済み。DB passwordはユーザー管理で、Claudeは扱っていない
+- Vercel：project `futari-no-kondate`（scope `leold0812-1563s-projects`）を作成。framework `nextjs`、Node.js `24.x`、Git Fork Protection有効、GitHub `leold0812-rgb/futari-no-kondate`へ接続、Production Branch `main`
+- GitHub：Vercel GitHub App（installation 123174061）のRepository accessへ`futari-no-kondate`を追加（ユーザー許可のうえ実施。既存の許可repositoryは変更なし）
+- Vercel環境変数：`NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY`（publishable key）を登録。Development・Preview（全branch）→ dev project、Production → prod project。service role / OpenAI / Cron / Blobは未登録
+- ローカルの`.vercel/`はlink情報のみでGit管理外
+- 初回Production deploymentは、Production Branchが`main`の設定にもかかわらずPR branch `docs/gate-0-5-environments`（`d33f379`）から作られた（Production deploymentが1件もない状態でGit接続直後にpushしたため）。mainとの差分はdocsのみで、`https://futari-no-kondate.vercel.app`の`/`・`/recipes`・manifestは200。PR #1・#2をmainへマージした後、mainからのProduction deploymentに置き換わったことを確認する
+
 ## 未完了
 
-- Development / Production設定手順（Gate 0-5）
-- Supabase / Vercel / OpenAI / Blobのproject作成・接続
+- OpenAI / Vercel Blobのproject/store作成と接続（各機能を実装するGateで設定）
 - 全Gateの業務機能
 
 ## 既知の問題・要確認
@@ -111,9 +126,18 @@ UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ
 
 ## 環境変数変更
 
-Gate 0-3での追加・変更なし。Gate 0-1で`.env.example`を新規作成（値は空）：`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `CRON_SECRET`, `BLOB_READ_WRITE_TOKEN`。`lib/env/`から参照するが、Supabase clientを呼ぶ画面はまだないため、未設定でもbuild・起動できる。
+Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」）。コード上の変数名に変更なし。Gate 0-1で`.env.example`を新規作成（値は空）：`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `CRON_SECRET`, `BLOB_READ_WRITE_TOKEN`。`lib/env/`から参照するが、Supabase clientを呼ぶ画面はまだないため、未設定でもbuild・起動できる。
 
 ## テスト結果
+
+### Gate 0-5
+
+- 公式Vercel/Supabase文書と照合し、環境対応表・ローカル手順・CI方針を文書レビュー（2026-09-26にVercel Sensitive env / Vercel for GitHub / Node.js versions、Supabase Billingを再確認）
+- Supabase Free planの非アクティブproject一時停止の条件は今回参照した文書に記載がなく未確認
+- コード変更なし
+- Vercel環境変数：Development / Previewの値を一時ファイルへpullし、URLのproject refがdev、keyが`sb_publishable_`形式であること、`/auth/v1/health`が200を返すことを確認（一時ファイルは削除）。Production値はローカルへpullせず、prod URLの`/auth/v1/health`が200であることのみ確認
+- REST APIでenv一覧を取得し、6件（2変数×3環境）・Preview分はgitBranch指定なし・サーバー秘密値の登録なしを確認
+- `vercel env add ... preview`はCLI 50.39.0の非対話モードでbranch確認がループし失敗したため、Vercel REST API（`POST /v10/projects/{id}/env`）で登録した
 
 ### Gate 0-4（2026-09-26）
 
@@ -143,5 +167,6 @@ Gate 0-3での追加・変更なし。Gate 0-1で`.env.example`を新規作成�
 
 ## 次の推奨作業
 
-- Gate 0-5：Development / Production設定手順（Supabase・Vercel projectの分離、環境変数の登録先）をdocsへ
+- PR #2をマージし、mainからのProduction deploymentが成功して`https://futari-no-kondate.vercel.app`が置き換わったことを確認する（PR #1は2026-09-26にマージ済み）
+- Gate 1（認証・共有境界）の作業指示を作成する
 - Gate 1で認証を入れる際に、Supabase session更新用の`proxy.ts`を追加する
