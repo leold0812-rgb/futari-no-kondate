@@ -167,6 +167,6 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 
 ## 次の推奨作業
 
-- PR #1 → #2 の順にマージし、mainからの初回Production deploymentが成功することを確認する
+- PR #2をマージし、mainからのProduction deploymentが成功して`https://futari-no-kondate.vercel.app`が置き換わったことを確認する（PR #1は2026-09-26にマージ済み）
 - Gate 1（認証・共有境界）の作業指示を作成する
 - Gate 1で認証を入れる際に、Supabase session更新用の`proxy.ts`を追加する
