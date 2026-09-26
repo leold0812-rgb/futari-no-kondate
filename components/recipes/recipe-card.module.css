@@ -1,0 +1,69 @@
+.item {
+  display: flex;
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-soft);
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.card:active {
+  background: var(--color-bg);
+}
+
+.image {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+}
+
+.body {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px 12px;
+}
+
+.name {
+  display: -webkit-box;
+  overflow: hidden;
+  font-weight: 700;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.tags {
+  overflow: hidden;
+  color: var(--color-primary-strong);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.status {
+  justify-self: start;
+  padding: 0 8px;
+  border: 1px solid var(--color-caution);
+  border-radius: var(--radius-pill);
+  color: var(--color-caution-strong);
+  font-size: 0.75rem;
+  font-weight: 700;
+}

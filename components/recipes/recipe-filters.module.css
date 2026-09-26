@@ -1,0 +1,71 @@
+.form {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.searchRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.details summary {
+  min-height: var(--tap-min);
+  padding: 10px 0;
+  color: var(--color-primary-strong);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.checkbox {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap-min);
+}
+
+.checkbox input {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--color-primary-strong);
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.count {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

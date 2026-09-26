@@ -156,9 +156,9 @@ jobs:
           sed -i '/^\[auth.email\]/,/^\[/ s/^enable_signup = false/enable_signup = true/' supabase/config.toml
           git diff --stat -- supabase/config.toml
 
-      - name: Start local Supabase (Auth and API only)
-        # 不要なサービスは除外する。Auth(gotrue)・API gateway(kong)・PostgREST・Mailpitを使う
-        run: npx supabase start -x realtime,storage-api,imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta
+      - name: Start local Supabase (Auth, API and Storage)
+        # 不要なサービスは除外する。Auth(gotrue)・API gateway(kong)・PostgREST・Storage・Mailpitを使う
+        run: npx supabase start -x realtime,imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta
 
       - name: Export local connection settings
         run: |
@@ -171,7 +171,7 @@ jobs:
             echo "SPIKE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-$SECRET_KEY}"
           } >> "$GITHUB_ENV"
 
-      - name: Session issuance and bootstrap integration tests
+      - name: Integration tests (session issuance, bootstrap, PIN login, recipes)
         run: npm run test:integration
 
       - name: Bootstrap CLI end-to-end (local only)
