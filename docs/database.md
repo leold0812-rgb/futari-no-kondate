@@ -74,11 +74,11 @@
 
 ## 確定済みschema: CoupleSpace / profiles（Gate 1.1）
 
-migration: `supabase/migrations/20260926180000_create_couple_spaces_and_profiles.sql`。テスト: `supabase/tests/database/couple_space_rls.test.sql`（pgTAP、`npm run db:test`）と`scripts/db/test-member-limit-concurrency.sh`（`npm run db:test:concurrency`）。
+migration: `supabase/migrations/20260926180000_create_couple_spaces_and_profiles.sql`と修正`20260927090000_fix_member_limit_isolation.sql`。テスト: `supabase/tests/database/couple_space_rls.test.sql`（pgTAP、`npm run db:test`）と`scripts/db/test-member-limit-concurrency.sh`（`npm run db:test:concurrency`）。
 
 ### 2人上限
 
-`profiles`のBEFORE INSERT / UPDATE OF `couple_space_id` triggerが、対象`couple_spaces`行を`FOR UPDATE`でロックしてから同space内の他profile数を数え、2以上なら`check_violation`で拒否する。同じspaceへの同時追加は行ロックで直列化され、read committedでも後続transactionはcommit済みの先行分を含めて数え直す。ロック対象は1行だけで、deadlockしない。triggerは`private` schemaの`SECURITY DEFINER`関数（`search_path = ''`）で、一般ユーザーにはprofilesへの書き込み権限がないため管理者操作でのみ発火する。
+`profiles`のBEFORE INSERT / UPDATE OF `couple_space_id` triggerが、対象`couple_spaces`行を`UPDATE`（`updated_at`の更新）してから同space内の他profile数を数え、2以上なら`check_violation`で拒否する。同じspaceへの同時追加は、この行更新で直列化される。read committedでは先行transactionのcommitを待ち、その後の件数取得は新しいsnapshotで先行分を含めて数える。repeatable read / serializableでは、snapshot取得後に同じspaceへprofileが追加（=space行が更新）されていれば`could not serialize access`（40001）で失敗し、競合が無ければsnapshotの件数は正確なので、分離レベルに依らず上限を超えない。ロック対象は1行だけで、deadlockしない。副作用としてprofile追加・移動のたびにspaceの`updated_at`が更新される。当初の実装（`FOR UPDATE`のみ）はrepeatable read以上で上限を超えられたため、migration `20260927090000_fix_member_limit_isolation.sql`で修正した。triggerは`private` schemaの`SECURITY DEFINER`関数（`search_path = ''`）で、一般ユーザーにはprofilesへの書き込み権限がないため管理者操作でのみ発火する。
 
 ### 権限（誰が何をできるか）
 
