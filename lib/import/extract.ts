@@ -52,9 +52,11 @@ export function parseDurationMinutes(value: unknown): number | null {
   return minutes > 0 && minutes <= 600 ? minutes : null;
 }
 
+/** "Recipe" / "schema:Recipe" / "https://schema.org/Recipe" / 配列のどれでも判定する */
 function typeIncludes(node: Record<string, unknown>, type: string): boolean {
   const value = node["@type"];
-  return Array.isArray(value) ? value.includes(type) : value === type;
+  const types = Array.isArray(value) ? value : [value];
+  return types.some((t) => typeof t === "string" && (t === type || t.split(/[/:#]/).pop() === type));
 }
 
 function collectNodes(value: unknown, into: Record<string, unknown>[] = []): Record<string, unknown>[] {
@@ -146,18 +148,37 @@ function metaContent(html: string, key: string): string | null {
   return cleanText(match?.[1] ?? match?.[2] ?? null, 2000);
 }
 
-const MAX_TEXT = 8000;
+const MAX_TEXT = 6000;
+const MAX_DESCRIPTION = 500;
+const RECIPE_START = /材料|ingredients/i;
+const STEPS_START = /作り方|手順|instructions|directions/i;
+// 作り方のあとに続く、レシピ以外の部分（コメント・関連記事など）の見出し
+const NON_RECIPE_TAIL = /\n(?:コメント|みんなの|関連|おすすめ|人気|ランキング|この記事|シェア|あわせて読みたい|related|comments?|you may also like)/i;
 
-/** AIへ渡す最小限の本文。script・style・ヘッダー・フッター・ナビゲーションを除き、上限で切る */
+/**
+ * AIへ渡す本文を、材料〜作り方の周辺だけに絞る（公開レシピ本文の必要最小限。AGENTS.md）。
+ * 「材料」が見つかればその少し前から、作り方のあとのコメント・関連記事などの見出しの手前までを使う。
+ */
+export function recipeWindow(text: string): string {
+  const start = text.search(RECIPE_START);
+  let window = start >= 0 ? text.slice(Math.max(0, start - 400)) : text;
+  const steps = window.search(STEPS_START);
+  const from = Math.max(steps, 0);
+  const tail = window.slice(from).search(NON_RECIPE_TAIL);
+  if (tail > 0) window = window.slice(0, from + tail);
+  return window.slice(0, MAX_TEXT);
+}
+
+/** AIへ渡す最小限の本文。script・style・ヘッダー・フッター・ナビゲーション等を除き、レシピ部分だけを上限で切る */
 export function summarizePage(html: string): PageSummary {
   const title = metaContent(html, "og:title") ?? cleanText(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? null, 200);
-  const description = metaContent(html, "og:description") ?? metaContent(html, "description");
+  const description = (metaContent(html, "og:description") ?? metaContent(html, "description"))?.slice(0, MAX_DESCRIPTION) ?? null;
   const imageUrl = metaContent(html, "og:image");
 
   const main = /<(main|article)[\s>][\s\S]*?<\/\1>/i.exec(html)?.[0] ?? html;
   const text = decodeEntities(
     main
-      .replace(/<(script|style|noscript|svg|nav|header|footer|form|iframe|template)[\s\S]*?<\/\1>/gi, " ")
+      .replace(/<(script|style|noscript|svg|nav|header|footer|form|iframe|template|aside)[\s\S]*?<\/\1>/gi, " ")
       .replace(/<!--[\s\S]*?-->/g, " ")
       .replace(/<(br|\/p|\/li|\/h[1-6]|\/div|\/tr)[^>]*>/gi, "\n")
       .replace(/<[^>]+>/g, " "),
@@ -165,10 +186,9 @@ export function summarizePage(html: string): PageSummary {
     .split("\n")
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean)
-    .join("\n")
-    .slice(0, MAX_TEXT);
+    .join("\n");
 
-  return { title, description, imageUrl, text };
+  return { title, description, imageUrl, text: recipeWindow(text) };
 }
 
 /** 「2人分」「4 servings」などから人数（1〜8）を取り出す */

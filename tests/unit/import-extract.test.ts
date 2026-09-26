@@ -30,6 +30,11 @@ describe("JSON-LDのRecipe", () => {
     expect(extractJsonLdRecipe(html)?.instructions).toEqual(["切る。", "焼く。", "盛る"]);
   });
 
+  it("@typeが schema.org のURI形式でもRecipeとして読む", () => {
+    const html = `<script type="application/ld+json">{"@type":"https://schema.org/Recipe","name":"x","recipeIngredient":["a 1個"]}</script>`;
+    expect(extractJsonLdRecipe(html)?.ingredients).toEqual(["a 1個"]);
+  });
+
   it("壊れたJSON・Recipe以外・中身の無いRecipeは使わない", () => {
     expect(extractJsonLdRecipe(`<script type="application/ld+json">{broken</script>`)).toBeNull();
     expect(extractJsonLdRecipe(`<script type="application/ld+json">{"@type":"Article"}</script>`)).toBeNull();
@@ -52,9 +57,22 @@ describe("AIへ渡す本文の要約", () => {
     expect(summary.text).not.toContain("メニュー");
   });
 
-  it("本文は上限（8000文字）で切る", () => {
-    const html = `<main>${"あ".repeat(20000)}</main>`;
-    expect(summarizePage(html).text.length).toBe(8000);
+  it("本文は上限（6000文字）で切り、説明は500文字まで", () => {
+    const html = `<meta name="description" content="${"い".repeat(1000)}"><main>${"あ".repeat(20000)}</main>`;
+    const summary = summarizePage(html);
+    expect(summary.text.length).toBe(6000);
+    expect(summary.description?.length).toBe(500);
+  });
+
+  it("材料〜作り方の周辺だけを使い、コメント・関連記事・asideは送らない", () => {
+    const html = `<main><p>${"前置きの長い日記".repeat(200)}</p><h2>材料</h2><p>豚こま 150g</p><h2>作り方</h2><p>煮る</p>
+      <h2>コメント</h2><p>山田さん：おいしかった</p><aside>広告</aside></main>`;
+    const text = summarizePage(html).text;
+    expect(text).toContain("豚こま 150g");
+    expect(text).toContain("煮る");
+    expect(text).not.toContain("山田さん");
+    expect(text).not.toContain("広告");
+    expect(text.length).toBeLessThan(600);
   });
 });
 

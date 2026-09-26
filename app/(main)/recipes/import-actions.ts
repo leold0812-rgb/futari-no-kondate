@@ -3,8 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMember } from "@/lib/auth/session";
-import { startOfTokyoDay } from "@/lib/dates";
-import { DAILY_AI_IMPORT_LIMIT, importRecipeFromUrl, type ImportResult } from "@/lib/import/import-recipe";
+import { importRecipeFromUrl, type ImportResult } from "@/lib/import/import-recipe";
 import { checkImportUrl } from "@/lib/import/url-safety";
 import { saveRecipe } from "@/lib/services/recipes";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -16,30 +15,45 @@ export async function importRecipeAction(url: string): Promise<ImportActionResul
   const input = String(url ?? "").trim().slice(0, 2048);
   const checked = checkImportUrl(input);
   if (!checked.ok) return { ok: false, method: "NONE", reason: checked.reason, title: null, sourceUrl: input, host: null };
-
-  const supabase = await createSupabaseServerClient();
-  const { count } = await supabase
-    .from("recipe_import_logs")
-    .select("id", { count: "exact", head: true })
-    .eq("method", "AI")
-    .gte("created_at", startOfTokyoDay().toISOString());
-  const aiAllowed = (count ?? 0) < DAILY_AI_IMPORT_LIMIT;
+  const host = checked.url.hostname.slice(0, 255);
 
   // OPENAI_API_KEY は必要になった時だけ読む（未設定でもJSON-LDのページは取り込める）
   const apiKey = process.env.OPENAI_API_KEY?.trim() || null;
-  const result = await importRecipeFromUrl(checked.url.toString(), {
-    aiAllowed,
-    apiKey,
-    model: process.env.OPENAI_IMPORT_MODEL?.trim() || undefined,
-  });
+  const supabase = await createSupabaseServerClient();
 
-  if (result.host) {
-    await supabase.from("recipe_import_logs").insert({
-      source_host: result.host.slice(0, 255),
-      method: result.method,
-      outcome: result.ok ? "SUCCESS" : "FAILED",
-    });
+  // 上限の判定と記録はDB関数で一体に行う（同時リクエストでも上限を超えない）
+  const { data: reservation, error } = await supabase
+    .rpc("begin_recipe_import", { p_source_host: host, p_want_ai: Boolean(apiKey) })
+    .single<{ import_id: string | null; allowed: boolean; ai_allowed: boolean }>();
+  if (error || !reservation) {
+    return { ok: false, method: "NONE", reason: "取り込みを開始できませんでした。少し待ってからもう一度お試しください。", title: null, sourceUrl: checked.url.toString(), host };
   }
+  if (!reservation.allowed || !reservation.import_id) {
+    return {
+      ok: false,
+      method: "NONE",
+      reason: "短い時間に取り込みが続いたため、一時的に止めています。1時間ほど待つか、手入力で続けてください。",
+      title: null,
+      sourceUrl: checked.url.toString(),
+      host,
+    };
+  }
+
+  let result: ImportResult;
+  try {
+    result = await importRecipeFromUrl(checked.url.toString(), {
+      aiAllowed: reservation.ai_allowed,
+      apiKey,
+      model: process.env.OPENAI_IMPORT_MODEL?.trim() || undefined,
+    });
+  } catch {
+    result = { ok: false, method: "NONE", reason: "ページを読み取れませんでした。", title: null, sourceUrl: checked.url.toString(), host };
+  }
+  await supabase.rpc("finish_recipe_import", {
+    p_import_id: reservation.import_id,
+    p_method: result.method,
+    p_outcome: result.ok ? "SUCCESS" : "FAILED",
+  });
   return result;
 }
 

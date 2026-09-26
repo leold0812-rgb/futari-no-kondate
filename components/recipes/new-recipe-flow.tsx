@@ -44,7 +44,20 @@ export function NewRecipeFlow({
     event.preventDefault();
     setUrlOnlyError(null);
     startTransition(async () => {
-      const result = await importAction(url);
+      let result: ImportActionResult;
+      try {
+        result = await importAction(url);
+      } catch {
+        // 通信断・サーバーエラーでも行き止まりにせず、手入力へ進めるようにする
+        result = {
+          ok: false,
+          method: "NONE",
+          reason: "通信に失敗しました。通信状態を確認してもう一度取り込むか、手入力で続けてください。",
+          title: null,
+          sourceUrl: url,
+          host: null,
+        };
+      }
       if (!result.ok) {
         setStage({ kind: "failed", result });
         return;
@@ -70,8 +83,14 @@ export function NewRecipeFlow({
 
   function saveUrlOnly(sourceUrl: string, title: string | null) {
     startTransition(async () => {
-      const result = await saveUrlOnlyAction(sourceUrl, title);
-      if (result?.error) setUrlOnlyError(result.error);
+      try {
+        const result = await saveUrlOnlyAction(sourceUrl, title);
+        if (result?.error) setUrlOnlyError(result.error);
+      } catch (error) {
+        // 保存成功時はredirectで画面が切り替わる（Next.jsのredirectは例外として伝わるため再送出する）
+        if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
+        setUrlOnlyError("保存できませんでした。通信状態を確認して、もう一度お試しください。");
+      }
     });
   }
 

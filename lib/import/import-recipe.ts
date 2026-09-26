@@ -27,8 +27,10 @@ export type ImportResult =
   | { ok: true; method: "JSON_LD" | "AI"; draft: ImportDraft; host: string }
   | { ok: false; method: "JSON_LD" | "AI" | "NONE"; reason: string; title: string | null; sourceUrl: string; host: string | null };
 
-/** 1つのspaceで1日にAIで読み取れる回数（費用の上限。JSON-LDで読めるページは数えない） */
-export const DAILY_AI_IMPORT_LIMIT = 20;
+/**
+ * 上限（DB関数 begin_recipe_import で判定。supabase/migrations/20260930090000_create_recipe_import_logs.sql）
+ *   AI：1 spaceあたり日本時間の1日20回 / 取り込み：1 spaceあたり直近1時間30回
+ */
 
 const PAGE_LIMIT = { maxBytes: 3 * 1024 * 1024, timeoutMs: 10_000 };
 const MIN_TEXT_FOR_AI = 40;
