@@ -30,15 +30,10 @@ export function isPinFormat(pin: string): boolean {
   return new RegExp(`^[0-9]{${PIN_MIN_LENGTH},${PIN_MAX_LENGTH}}$`).test(pin);
 }
 
-/** PIN設定時の検証。推測されやすい並び（同じ数字の繰り返し、連番）を拒否する */
+/** PIN設定時の検証。同じ数字だけのPINは拒否する（連番は利用者の指示で許可。判断ログ73） */
 export function validateNewPin(pin: string): string | null {
   if (!isPinFormat(pin)) return `PINは${PIN_MIN_LENGTH}〜${PIN_MAX_LENGTH}桁の数字にしてください。`;
   if (/^(\d)\1+$/.test(pin)) return "同じ数字だけのPINは使えません。";
-  const digits = [...pin].map(Number);
-  const steps = digits.slice(1).map((d, i) => (d - digits[i] + 10) % 10);
-  if (steps.every((s) => s === 1) || steps.every((s) => s === 9)) {
-    return "連番（123456、987654など）のPINは使えません。";
-  }
   return null;
 }
 

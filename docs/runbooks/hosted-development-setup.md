@@ -117,7 +117,7 @@ PINはサーバーで `scrypt(HMAC(PIN_PEPPER, PIN))` として保存する。`P
 openssl rand -base64 48
 ```
 
-2. 1人目が自分のPIN（6〜12桁の数字。同じ数字だけ・連番は不可）を入力する。画面には表示されない。
+2. 1人目が自分のPIN（6〜12桁の数字。同じ数字だけは不可。連番は可）を入力する。画面には表示されない。
 
 ```bash
 node --env-file=.env.bootstrap.local scripts/auth/set-pin.mts --project-ref jqkslfjdppwliugchwbm --member 1
@@ -129,8 +129,8 @@ node --env-file=.env.bootstrap.local scripts/auth/set-pin.mts --project-ref jqks
 node --env-file=.env.bootstrap.local scripts/auth/set-pin.mts --project-ref jqkslfjdppwliugchwbm --member 2
 ```
 
-- PINを忘れた・5回以上間違えてロックされた場合も、同じコマンドで再設定するとロックが解除される。
-- ロックは連続5回の失敗で15分（続けば30分、以降60分）。送信元IP単位でも1時間20回まで。
+- PINを忘れた場合は、同じコマンドで再設定する。
+- PINを続けて間違えてもアカウントはロックされない。同じ送信元（回線）からの試行は1時間20回までで、超えると1時間待つ（総当たり対策）。
 
 ## G. Vercel（Preview環境）へのサーバー秘密値の登録
 
