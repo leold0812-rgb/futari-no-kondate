@@ -50,9 +50,6 @@ begin
   if (select auth.uid()) is null then
     return new;
   end if;
-  if tg_op = 'UPDATE' and new.measured_on = old.measured_on then
-    return new;
-  end if;
   if new.measured_on > v_today or new.measured_on < v_today - 366 then
     raise exception 'measured_on must be within the past year'
       using errcode = 'check_violation', constraint = 'weight_records_measured_on_range';

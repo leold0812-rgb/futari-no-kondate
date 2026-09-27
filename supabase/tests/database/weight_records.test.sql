@@ -1,7 +1,7 @@
 -- Gate 8: 体重は本人だけ（パートナーにも見せない・Realtimeに出さない）
 begin;
 
-select plan(18);
+select plan(19);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -103,6 +103,17 @@ set local role service_role;
 select lives_ok(
   $$insert into public.weight_records (user_id, measured_on, weight_kg) values ('00000000-0000-4000-8000-00000000000a', '2020-01-01', 60)$$,
   '復元（service role）は1年より前の記録も入れられる'
+);
+reset role;
+
+-- 1年より前の記録は、利用者が直接でも書き換えられない（画面と同じ範囲）
+select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000a", "role": "authenticated"}', true);
+set local role authenticated;
+select throws_ok(
+  $$update public.weight_records set weight_kg = 61 where measured_on = '2020-01-01'$$,
+  '23514',
+  null,
+  '1年より前の記録は利用者が書き換えられない'
 );
 reset role;
 

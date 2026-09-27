@@ -47,7 +47,7 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - PWA：PNGアイコン（192・512・maskable・apple-touch-icon）、`public/sw.js`（オフライン案内だけ。利用データはキャッシュしない）、`/offline`、`app/(main)/error.tsx`、`app/not-found.tsx`
 - 手順書：`docs/runbooks/backup-restore.md`、`docs/runbooks/production-checklist.md`、`hosted-development-setup.md` J
 - 依存追加：`@vercel/blob` 2.8.0（固定）
-- テスト：unit 375件（`records-summary`・`backup-core`を追加）、pgTAP `weight_records.test.sql` 18件・`backup_snapshot.test.sql` 5件、E2E `09-records.spec.ts`（体重・相手に見えない・Cronの認証）、CIの復元テスト
+- テスト：unit 375件（`records-summary`・`backup-core`を追加）、pgTAP `weight_records.test.sql` 19件・`backup_snapshot.test.sql` 5件、E2E `09-records.spec.ts`（体重・相手に見えない・Cronの認証）、CIの復元テスト
 
 ### Gate 2b: 食品成分表と栄養計算（PR作成時点）
 
