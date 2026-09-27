@@ -103,7 +103,7 @@ migration: `supabase/migrations/20260928090000_create_pin_auth.sql`。テスト:
   - `pin_login_begin(user_id, source)`：ロック中なら`allowed=false`と残り秒数。profileとPIN登録のある利用者以外は`allowed=false`・待ち0（アカウント行を作らず、照合もしない）。そうでなければ試行を1回予約し`pin_hash`を返す。行ロックは常にaccount→sourceの順。1日以上前の送信元記録は各呼び出しの最後に`private.delete_stale_login_sources`で削除（他の処理がロック中の行は`skip locked`で飛ばし、ロック順を崩さない）
   - `pin_login_succeeded(user_id)`：アカウントの連続試行・ロック段階をリセット
   - `pin_set(user_id, pin_hash)`：profileのあるユーザーだけ。登録・更新しアカウントのロックを解除
-- 制限：アカウントは最後の成功以降の連続5回で15分→30分→60分（上限）。送信元（IPのHMAC）は1時間の固定windowで20回（成功も数える）で1時間。
+- 制限：送信元（IPのHMAC）は1時間の固定windowで20回（成功も数える）で1時間。アカウント単位のロックは`20261007090000_disable_pin_account_lockout.sql`で廃止（利用者の指示。`pin_login_begin`はアカウント行を作らず、`pin_login_succeeded`・`pin_set`のアカウント行リセットは空振りになる）。
 - PIN照合はアプリサーバー（`lib/auth/pin.ts`、scrypt N=2^15・r=8・p=1、pepperは環境変数`PIN_PEPPER`）。
 
 ## 確定済みschema: レシピ（Gate 2）

@@ -17,15 +17,16 @@ describe("PINの形式", () => {
   it.each([
     ["000000", "同じ数字"],
     ["1111111", "同じ数字"],
-    ["123456", "連番"],
-    ["654321", "連番"],
-    ["890123", "連番"],
   ])("新しいPIN %s は推測されやすいため拒否する（%s）", (pin, reason) => {
     expect(validateNewPin(pin)).toMatch(reason);
   });
 
   it("推測されにくいPINは設定できる", () => {
     expect(validateNewPin("274951")).toBeNull();
+  });
+
+  it.each(["123456", "654321", "890123"])("連番のPIN %s も設定できる（利用者の指示）", (pin) => {
+    expect(validateNewPin(pin)).toBeNull();
   });
 
   it("pepperは32文字以上を必須にする", () => {
@@ -69,12 +70,14 @@ describe("PINのハッシュと照合", () => {
 });
 
 describe("ログイン失敗の文言", () => {
-  it("ロック中は再試行までのおおよその分数を示す", () => {
+  it("送信元の制限中は再試行までのおおよその分数を示す", () => {
     expect(describeLoginFailure({ ok: false, reason: "locked", retryAfterSeconds: 61 })).toContain("約2分後");
   });
 
-  it("PIN違いでは、続けて間違えた場合の結果を示す", () => {
-    expect(describeLoginFailure({ ok: false, reason: "wrong_pin" })).toContain("5回");
+  it("PIN違いでは、ロックの警告を出さずに入力し直しを促す", () => {
+    const message = describeLoginFailure({ ok: false, reason: "wrong_pin" });
+    expect(message).toContain("もう一度入力");
+    expect(message).not.toContain("5回");
   });
 });
 

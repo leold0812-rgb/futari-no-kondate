@@ -1,6 +1,6 @@
 # Handoff
 
-更新日: 2026-09-27（Gate 8まで実装。PR #7〜#15がマージ待ち）
+更新日: 2026-09-27（Gate 8まで実装。PR #7はマージ済み、#8〜#16がマージ待ち）
 
 v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](tasks/app-v1-plan.md)
 
@@ -37,6 +37,12 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - `.env.example`（変数名のみ、値は空）、`.gitignore`に`!.env.example`と`.claude/`を追加
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
+
+### PINのロック廃止・連番の許可（2026-09-27、利用者の指示）
+
+- migration `20261007090000_disable_pin_account_lockout.sql`：`pin_login_begin`を差し替え、アカウント単位のロックを外した。既存のアカウント記録（ロック）を削除。送信元単位の1時間20回は総当たり対策として残した
+- `lib/auth/pin.ts`：連番のPINを許可（同じ数字だけは引き続き不可）。`lib/auth/pin-login.ts`：PIN違いの文言からロックの警告を削除
+- テスト：pgTAP `pin_auth` 27件、unit `pin.test.ts`、結合 `pin-login.test.ts`（連続6回間違えた後も正しいPINで入れる）
 
 ### Gate 8: 記録・バックアップ・PWA仕上げ（PR作成時点）
 
@@ -110,7 +116,7 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - 画面：`app/(auth)/login`（2人の名前を選んでPIN入力、失敗理由と次の行動を表示、`next`で戻り先）、`app/(main)/settings`（この端末でログアウト）、記録タブ右上に設定リンク
 - `proxy.ts`：session更新（`@supabase/ssr`公式構成、キャッシュ抑止headers）と未ログイン時の`/login?next=`リダイレクト。`(main)/layout.tsx`でも`requireMember()`
 - 共通UI：`components/ui/button|alert|card|field`、PageHeaderに`action` / `back` / `description`
-- `scripts/auth/set-pin.mts`：端末で非表示入力（CIは`--pin-stdin`）。再設定でロック解除
+- `scripts/auth/set-pin.mts`：端末で非表示入力（CIは`--pin-stdin`）
 - 環境変数追加：`PIN_PEPPER`（32文字以上、server-only）。`.env.example`への追記はユーザー作業（Claudeの権限で編集不可）
 - テスト：単体`tests/unit/pin.test.ts`、pgTAP`supabase/tests/database/pin_auth.test.sql`（27件）、統合`tests/integration/pin-login.test.ts`、E2E`tests/e2e/auth.spec.ts`（CIジョブ`e2e / app flows`、スクリーンショットはartifact `e2e-results`）
 - 追加依存：`@playwright/test` 1.63.0（devDependency、完全固定。CIのE2Eのみ）
@@ -327,7 +333,7 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 
 ## 次の推奨作業
 
-- PRのマージ（利用者）：#7（base main）→ #8 → #9 → #10 → #11 → #12 → #13 → #14 → #15 の順に `gh pr merge <番号> --merge`。1つマージしたら次のPRのbaseがmainへ変わるので、GitHubの「Update branch」でCIを再実行してからマージする
+- PRのマージ（利用者）：#8 → #9 → … → #15 → #16（PINのロック廃止）の順に `gh pr merge <番号> --merge`。マージ前に次のPRのbaseをmainへ付け替え（`gh pr edit <番号> --base main`）、「Update branch」でCIを通してからマージする
 - 利用者作業：[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)のA〜J（Aで全migrationを適用）、`.env.example`へ`PIN_PEPPER=`（値は空）を追記、リポジトリをiCloud同期の外へ移す、GitHubで外部contributorのworkflow承認を必須にする
 - Developmentで2人が1週間の流れを試し、問題なければ[Production導入チェックリスト](runbooks/production-checklist.md)
 - 実機iPhoneでの確認（Safe Area・ホーム画面追加・オフライン案内）

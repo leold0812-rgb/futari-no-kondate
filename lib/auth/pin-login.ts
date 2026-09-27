@@ -75,10 +75,10 @@ export function describeLoginFailure(failure: PinLoginFailure): string {
     case "invalid_input":
       return "名前を選び、6〜12桁の数字のPINを入力してください。";
     case "wrong_pin":
-      return "PINが違います。続けて5回間違えると、しばらくログインできなくなります。";
+      return "PINが違います。もう一度入力してください。";
     case "locked": {
       const minutes = Math.ceil(failure.retryAfterSeconds / 60);
-      return `間違いが続いたため、ログインを一時的に止めています。約${minutes}分後にもう一度お試しください。`;
+      return `この端末（通信回線）から短い時間に何度も試されたため、ログインを一時的に止めています。約${minutes}分後にもう一度お試しください。`;
     }
     case "not_ready":
       return "この名前はまだログインの準備ができていません（PIN未設定）。管理者にPINの設定を依頼してください。";

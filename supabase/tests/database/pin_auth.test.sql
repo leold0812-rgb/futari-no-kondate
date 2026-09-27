@@ -4,7 +4,7 @@
 
 begin;
 
-select plan(32);
+select plan(27);
 
 -- a1, a2: 同じspace（PINあり） / a3: profileなし / a4: profileあり・PIN未登録
 insert into auth.users (id) values
@@ -95,78 +95,36 @@ update private.login_throttles set attempt_count = 0 where scope = 'account';
 set local role service_role;
 
 -- ---------------------------------------------------------------------------
--- アカウント単位: 連続5回でロック
+-- アカウント単位: 連続で間違えてもロックしない（20261007090000_disable_pin_account_lockout.sql）
 -- ---------------------------------------------------------------------------
 select is(
   (select array_agg(b.allowed order by g)
-   from generate_series(1, 5) as g
+   from generate_series(1, 10) as g
    cross join lateral public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-1' || repeat('x', g * 0)) as b),
-  array[true, true, true, true, true],
-  '連続5回目までは試行できる'
+  array[true, true, true, true, true, true, true, true, true, true],
+  '連続10回（成功なし）でも試行でき、アカウントはロックされない'
 );
 select is(
-  (select pin_hash from public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-1')),
-  null,
-  '6回目はロック中のためPINハッシュを返さない'
-);
-select ok(
-  (select retry_after_seconds between 800 and 900
-   from public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-1')),
-  '1回目のロックは約15分'
-);
-select is(
-  (select allowed from public.pin_login_begin('00000000-0000-4000-8000-0000000000a2', 'source-1')),
+  (select pin_hash is not null from public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-2')),
   true,
-  'ロックはアカウント単位で、もう1人は同じ送信元からでも試行できる'
+  '11回目もPINハッシュを返す（照合できる）'
 );
-
--- ロック期限切れを再現して2回目のロックが30分になることを確認
 reset role;
-update private.login_throttles set locked_until = now() - interval '1 second'
-where scope = 'account' and subject = '00000000-0000-4000-8000-0000000000a1';
-set local role service_role;
-
 select is(
-  (select count(*)::int
-   from generate_series(1, 5) as g
-   cross join lateral public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-2' || repeat('x', g * 0)) as b
-   where b.allowed),
-  5,
-  'ロック期限後は再び5回まで試行できる'
+  (select count(*)::int from private.login_throttles where scope = 'account'),
+  0,
+  'アカウント単位の試行記録を作らない'
 );
-select ok(
-  (select retry_after_seconds between 1700 and 1800
-   from public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-2')),
-  '2回目のロックは約30分（段階的に延びる）'
-);
-
--- 成功で連続失敗とロックがリセットされる
+set local role service_role;
 select lives_ok(
   $$select public.pin_login_succeeded('00000000-0000-4000-8000-0000000000a1')$$,
-  '成功を記録できる'
+  '成功を記録できる（アカウントの記録が無くても失敗しない）'
 );
-select is(
-  (select allowed from public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-3')),
-  true,
-  '成功の記録後はロックが解除される'
-);
-reset role;
-select is(
-  (select array[attempt_count, lockout_count] from private.login_throttles
-   where scope = 'account' and subject = '00000000-0000-4000-8000-0000000000a1'),
-  array[1, 0],
-  '成功後は連続試行回数とロック段階が0から数え直される'
-);
-
--- PIN再設定でロックが解除される
-update private.login_throttles set locked_until = now() + interval '1 hour'
-where scope = 'account' and subject = '00000000-0000-4000-8000-0000000000a1';
-set local role service_role;
 select public.pin_set('00000000-0000-4000-8000-0000000000a1', 'scrypt$1$32768$8$1$c2FsdA==$bmV3');
 select is(
   (select allowed from public.pin_login_begin('00000000-0000-4000-8000-0000000000a1', 'source-3')),
   true,
-  'PINを再設定するとアカウントのロックが解除される'
+  'PINを再設定しても試行できる'
 );
 
 -- ---------------------------------------------------------------------------

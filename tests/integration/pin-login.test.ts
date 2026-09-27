@@ -1,7 +1,7 @@
 /**
  * Gate 1.4 / 1.7: PINログイン（lib/auth/pin-login.ts）をローカルSupabaseで検証する。
  * - 正しいPINでだけsessionが発行され、RLSを通して同じspaceのデータを読める
- * - 誤りが続くとロックされ、ロック中は正しいPINでも検証しない
+ * - 誤りが続いてもアカウントはロックしない（送信元単位の制限だけ。20261007090000）
  * - PINハッシュ・試行制限はブラウザ側（anon / authenticated）から触れない
  */
 import { createServerClient } from "@supabase/ssr";
@@ -106,32 +106,19 @@ describe("PINログイン", () => {
     }
   });
 
-  it("連続5回の失敗でロックされ、ロック中は正しいPINでもログインできない", async () => {
+  it("連続で間違えてもロックされず、正しいPINでログインできる", async () => {
     const { client, jar } = newSessionClient();
     const results = [];
-    for (let i = 0; i < 5; i += 1) {
+    for (let i = 0; i < 6; i += 1) {
       results.push(
         (await loginWithPin({ admin, sessionClient: client, pepper, userId: userB, pin: "111112", sourceKey: source("4") })).ok,
       );
     }
-    expect(results).toEqual([false, false, false, false, false]);
-
-    const locked = await loginWithPin({ admin, sessionClient: client, pepper, userId: userB, pin: PIN_B, sourceKey: source("5") });
-    expect(locked.ok).toBe(false);
-    if (!locked.ok) expect(locked.reason).toBe("locked");
+    expect(results).toEqual([false, false, false, false, false, false]);
     expect(jar.size).toBe(0);
 
-    // もう1人（別アカウント）には影響しない
-    const other = newSessionClient();
-    const resultA = await loginWithPin({ admin, sessionClient: other.client, pepper, userId: userA, pin: PIN_A, sourceKey: source("5") });
-    expect(resultA).toEqual({ ok: true });
-  });
-
-  it("PINを再設定するとロックが解除される", async () => {
-    await admin.rpc("pin_set", { p_user_id: userB, p_pin_hash: await hashPin(PIN_B, pepper) });
-    const { client } = newSessionClient();
-    const result = await loginWithPin({ admin, sessionClient: client, pepper, userId: userB, pin: PIN_B, sourceKey: source("6") });
-    expect(result).toEqual({ ok: true });
+    const afterMistakes = await loginWithPin({ admin, sessionClient: client, pepper, userId: userB, pin: PIN_B, sourceKey: source("4") });
+    expect(afterMistakes).toEqual({ ok: true });
   });
 
   it("PIN未登録・profileの無いIDは照合せずに「準備ができていない」を返す", async () => {
