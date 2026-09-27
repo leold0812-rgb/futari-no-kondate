@@ -23,7 +23,9 @@ test.describe.serial("週間計画（Gate 5）", () => {
     await page.getByRole("button", { name: "↶ 1つ戻る" }).click();
     await expect(page.getByText(/作る：1 \/ 5品/)).toBeVisible();
 
-    // キーボード（右矢印）でも選べる
+    // キーボード（右矢印）でも選べる。保存中（「1つ戻る」の送信中）のキー入力は受け付けないため、
+    // ボタンが押せる状態に戻ってから押す（「作る：1」は戻す前後で同じ表示なので完了の目印にならない）
+    await expect(accept).toBeEnabled();
     await page.getByRole("group", { name: /右矢印で作る/ }).press("ArrowRight");
     await expect(page.getByText(/作る：2 \/ 5品/)).toBeVisible();
     for (let i = 3; i <= 5; i += 1) {
