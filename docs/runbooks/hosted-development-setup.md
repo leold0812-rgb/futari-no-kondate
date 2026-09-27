@@ -107,10 +107,47 @@ node --env-file=.env.bootstrap.local scripts/auth/smoke-session.mts --project-re
 
 `NG` の項目があれば、出力をそのままClaudeへ渡す（token・keyの値は出力されない）。
 
-## F. 以降のGateで追加される手順
+## F. PIN_PEPPERと2人のPIN（Gate 1.4）
 
-- PINの設定と`PIN_PEPPER`の登録（Gate 1.4）→ このファイルの「G」以降へ追記する
-- アプリの秘密値のVercel登録（Preview環境、Sensitive）→ 同上
+PINはサーバーで `scrypt(HMAC(PIN_PEPPER, PIN))` として保存する。`PIN_PEPPER` はアプリ（Vercel）と管理スクリプトで**同じ値**を使う。変えると登録済みPINはすべて無効になり、再設定が必要になる。
+
+1. pepperを作り、`.env.bootstrap.local` に `PIN_PEPPER=<出力>` を追記する（値は表示・共有しない）。
+
+```bash
+openssl rand -base64 48
+```
+
+2. 1人目が自分のPIN（6〜12桁の数字。同じ数字だけ・連番は不可）を入力する。画面には表示されない。
+
+```bash
+node --env-file=.env.bootstrap.local scripts/auth/set-pin.mts --project-ref jqkslfjdppwliugchwbm --member 1
+```
+
+3. 2人目に交代して、本人が入力する。
+
+```bash
+node --env-file=.env.bootstrap.local scripts/auth/set-pin.mts --project-ref jqkslfjdppwliugchwbm --member 2
+```
+
+- PINを忘れた・5回以上間違えてロックされた場合も、同じコマンドで再設定するとロックが解除される。
+- ロックは連続5回の失敗で15分（続けば30分、以降60分）。送信元IP単位でも1時間20回まで。
+
+## G. Vercel（Preview環境）へのサーバー秘密値の登録
+
+PreviewデプロイでログインできるようにDevelopment用の値を登録する。Vercel Dashboard → Project `futari-no-kondate` → Settings → Environment Variables で、**Environment: Preview のみ**、**Sensitive: ON** にして追加する。
+
+| 変数 | 値 |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | Development projectで新しく作ったsecret key（名前 `vercel-preview`。Cで作ったローカル用とは分ける） |
+| `PIN_PEPPER` | Fと同じ値 |
+
+- Production環境には登録しない（Productionは本番導入チェックリストで別の値を作る）。
+- ローカルで `npm run dev` する場合は、`.env.local` に同じ4変数（URL・publishable key・secret key・PIN_PEPPER）を置く。
+- 登録後、PRのPreview URLを開き、2人ともログインできることを確認する。
+
+## H. 以降のGateで追加される手順
+
+- OpenAI API key（URL取り込み、Gate 3）、Vercel Blob store（バックアップ、Gate 8）、`CRON_SECRET` → このファイルへ追記する
 
 ## 後片付け・漏えい時
 

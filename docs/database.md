@@ -94,6 +94,18 @@ migration: `supabase/migrations/20260926180000_create_couple_spaces_and_profiles
 - RLS policyは`couple_spaces_select_own_space`と`profiles_select_same_space`の2本（どちらもSELECT・authenticated）。書き込み用policyは作らない（grantsも無いため二重に拒否）。
 - 所属判定は`private.current_couple_space_id()`（`SECURITY DEFINER`、`search_path = ''`、EXECUTEはauthenticatedのみ）。`profiles`を直接再帰参照しない。`private` schemaはPostgRESTのexposed schemas（`supabase/config.toml`の`api.schemas`）に含めない。
 
+## 確定済みschema: PIN認証（Gate 1.4）
+
+migration: `supabase/migrations/20260928090000_create_pin_auth.sql`。テスト: `supabase/tests/database/pin_auth.test.sql`、`tests/integration/pin-login.test.ts`。
+
+- `private.pin_credentials`（`user_id` PK→`auth.users` cascade、`pin_hash`は`scrypt$`形式のみ）と`private.login_throttles`（`scope`=`account`/`source`、`subject`、試行回数、window、`locked_until`、`lockout_count`）。どのroleにもテーブル権限を与えない（service_roleも関数経由のみ）。`private` schemaはAPIに公開しない。
+- 関数（`public`、`SECURITY DEFINER`、`search_path = ''`、EXECUTEはservice_roleのみ）:
+  - `pin_login_begin(user_id, source)`：ロック中なら`allowed=false`と残り秒数。profileとPIN登録のある利用者以外は`allowed=false`・待ち0（アカウント行を作らず、照合もしない）。そうでなければ試行を1回予約し`pin_hash`を返す。行ロックは常にaccount→sourceの順。1日以上前の送信元記録は各呼び出しの最後に`private.delete_stale_login_sources`で削除（他の処理がロック中の行は`skip locked`で飛ばし、ロック順を崩さない）
+  - `pin_login_succeeded(user_id)`：アカウントの連続試行・ロック段階をリセット
+  - `pin_set(user_id, pin_hash)`：profileのあるユーザーだけ。登録・更新しアカウントのロックを解除
+- 制限：アカウントは最後の成功以降の連続5回で15分→30分→60分（上限）。送信元（IPのHMAC）は1時間の固定windowで20回（成功も数える）で1時間。
+- PIN照合はアプリサーバー（`lib/auth/pin.ts`、scrypt N=2^15・r=8・p=1、pepperは環境変数`PIN_PEPPER`）。
+
 ### 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。

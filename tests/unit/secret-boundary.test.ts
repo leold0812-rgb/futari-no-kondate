@@ -9,8 +9,14 @@ const SERVER_SECRET_NAMES = [
   "OPENAI_API_KEY",
   "CRON_SECRET",
   "BLOB_READ_WRITE_TOKEN",
+  "PIN_PEPPER",
 ];
-const SERVER_ONLY_MODULES = ["lib/env/server.ts", "lib/supabase/server.ts"];
+const SERVER_ONLY_MODULES = [
+  "lib/env/server.ts",
+  "lib/supabase/server.ts",
+  "lib/supabase/admin.ts",
+  "lib/auth/session.ts",
+];
 const ALWAYS_CLIENT_REACHABLE = ["lib/env/public.ts", "lib/supabase/client.ts"];
 
 function sourceFiles(dir: string): string[] {
@@ -40,6 +46,6 @@ describe("server secretの境界", () => {
     for (const name of SERVER_SECRET_NAMES) {
       expect(source).not.toContain(name);
     }
-    expect(source).not.toMatch(/lib\/(env|supabase)\/server/);
+    expect(source).not.toMatch(/lib\/(env\/server|supabase\/(server|admin)|auth\/session)/);
   });
 });

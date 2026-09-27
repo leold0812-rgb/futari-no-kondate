@@ -39,9 +39,10 @@ Supabaseのproject URLとpublishable keyは各projectのConnect/API Keys画面�
 |---|---|---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Dev URL | Supabase Dev URL | Supabase Prod URL | 公開値。`https://`を使用 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Dev publishable key | Dev publishable key | Prod publishable key | 公開値。service roleは禁止 |
-| `SUPABASE_SERVICE_ROLE_KEY` | 未登録 | 未登録 | 未登録 | 必要なサーバー機能を実装するGateまで登録しない |
+| `SUPABASE_SERVICE_ROLE_KEY` | 未登録（ローカルは`.env.local`） | Dev secret key（Sensitive） | Prod secret key（Sensitive） | ログイン（PIN検証・session発行）とバックアップで使う。server-onlyの`lib/supabase/admin.ts`だけが読む |
 | `OPENAI_API_KEY` | 未登録 | 未登録 | 未登録 | レシピ取り込み実装時に必要な環境だけへ登録 |
 | `CRON_SECRET` | 未登録 | 未登録 | 未登録 | バックアップCron実装時にProductionへ登録 |
+| `PIN_PEPPER` | 未登録（ローカルは`.env.local`） | Dev用の値（Sensitive） | Prod用の別の値（Sensitive） | PINハッシュと送信元HMACのpepper。32文字以上。変えると登録済みPINが無効になる |
 | `BLOB_READ_WRITE_TOKEN` | 未登録 | 未登録 | 未登録 | バックアップ実装時にprivate storeごとに登録 |
 
 未使用のサーバー秘密値は空値で登録せず、変数そのものを未登録にします。必要になった機能だけが遅延検証する設計です。

@@ -38,6 +38,18 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
+### Gate 1.4〜1.7: PIN認証・ログイン画面・proxy・E2E基盤
+
+- migration `20260928090000_create_pin_auth.sql`：`private.pin_credentials` / `private.login_throttles`（テーブル権限なし）と、service_role専用RPC `pin_login_begin` / `pin_login_succeeded` / `pin_set`。詳細は`docs/database.md`
+- `lib/auth/pin.ts`（形式・弱いPIN拒否・scrypt+pepper・送信元HMAC）、`lib/auth/pin-login.ts`（予約→照合→成功記録→`generateLink`+`verifyOtp`）、`lib/supabase/admin.ts`（server-only）、`lib/auth/session.ts`（`getCurrentMember` / `requireMember`）
+- 画面：`app/(auth)/login`（2人の名前を選んでPIN入力、失敗理由と次の行動を表示、`next`で戻り先）、`app/(main)/settings`（この端末でログアウト）、記録タブ右上に設定リンク
+- `proxy.ts`：session更新（`@supabase/ssr`公式構成、キャッシュ抑止headers）と未ログイン時の`/login?next=`リダイレクト。`(main)/layout.tsx`でも`requireMember()`
+- 共通UI：`components/ui/button|alert|card|field`、PageHeaderに`action` / `back` / `description`
+- `scripts/auth/set-pin.mts`：端末で非表示入力（CIは`--pin-stdin`）。再設定でロック解除
+- 環境変数追加：`PIN_PEPPER`（32文字以上、server-only）。`.env.example`への追記はユーザー作業（Claudeの権限で編集不可）
+- テスト：単体`tests/unit/pin.test.ts`、pgTAP`supabase/tests/database/pin_auth.test.sql`（27件）、統合`tests/integration/pin-login.test.ts`、E2E`tests/e2e/auth.spec.ts`（CIジョブ`e2e / app flows`、スクリーンショットはartifact `e2e-results`）
+- 追加依存：`@playwright/test` 1.63.0（devDependency、完全固定。CIのE2Eのみ）
+
 ### Gate 1.3: 固定2人のAuthアカウントbootstrap
 
 - `scripts/auth/bootstrap-couple.mts`（CLI）/ `bootstrap-runner.mts`（Supabase入出力）/ `bootstrap-plan.mts`（純粋な計画）。Node 24の型除去でそのまま実行する（新規依存なし。`tsconfig.json`に`allowImportingTsExtensions`を追加）

@@ -197,3 +197,92 @@ jobs:
         run: |
           docker ps -a
           docker logs supabase_auth_futari-no-kondate --tail 80
+
+  # アプリ全体のE2E。ランナー上のDockerでローカルSupabaseを起動し、本番buildのNext.jsをPlaywright（Chromium・iPhone幅）で操作する。
+  # hosted Supabase・GitHub Secretsは使わない。PIN_PEPPERと2人のPINは実行ごとの使い捨て値。
+  e2e:
+    name: e2e / app flows
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DO_NOT_TRACK: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      E2E_MEMBER_1_NAME: E2E太郎
+      E2E_MEMBER_2_NAME: E2E花子
+      BOOTSTRAP_MEMBER_1_EMAIL: member-1@futari-no-kondate.invalid
+      BOOTSTRAP_MEMBER_1_DISPLAY_NAME: E2E太郎
+      BOOTSTRAP_MEMBER_2_EMAIL: member-2@futari-no-kondate.invalid
+      BOOTSTRAP_MEMBER_2_DISPLAY_NAME: E2E花子
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Guard against remote targets
+        run: |
+          if grep -nE -e '--linked|--db-url|supabase (link|login|db push)' package.json scripts/db/*.sh; then
+            echo "::error::リモートのSupabaseを指す可能性のある記述があります。"
+            exit 1
+          fi
+          if grep -rnE -e 'supabase\.co|sb_secret_|sb_publishable_|eyJ[A-Za-z0-9_-]{20,}' tests/e2e playwright.config.ts; then
+            echo "::error::E2Eにhosted URLまたはキーが埋め込まれています。"
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start local Supabase
+        run: npx supabase start -x imgproxy,edge-runtime,logflare,vector,supavisor,studio,postgres-meta
+
+      - name: Export local connection settings and test-only secrets
+        run: |
+          npx supabase status -o env > "$RUNNER_TEMP/supabase-local.env"
+          set -a; . "$RUNNER_TEMP/supabase-local.env"; set +a
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY:-$PUBLISHABLE_KEY}"
+            echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-$SECRET_KEY}"
+            echo "PIN_PEPPER=$(openssl rand -hex 32)"
+            echo "E2E_PIN_1=$(shuf -i 100000-999999 -n 1)1"
+            echo "E2E_PIN_2=$(shuf -i 100000-999999 -n 1)2"
+          } >> "$GITHUB_ENV"
+
+      - name: Bootstrap the two accounts and PINs
+        run: |
+          node scripts/auth/bootstrap-couple.mts --project-ref local --apply
+          printf '%s\n' "$E2E_PIN_1" | node scripts/auth/set-pin.mts --project-ref local --member 1 --pin-stdin
+          printf '%s\n' "$E2E_PIN_2" | node scripts/auth/set-pin.mts --project-ref local --member 2 --pin-stdin
+
+      - name: Build
+        run: npm run build
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run e2e
+
+      - name: Upload screenshots and report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Show container logs on failure
+        if: failure()
+        run: |
+          docker ps -a
+          docker logs supabase_auth_futari-no-kondate --tail 80

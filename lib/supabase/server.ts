@@ -8,8 +8,9 @@ import { readPublicEnv } from "@/lib/env/public";
  * リクエストごとに生成し、モジュールスコープで共有しない。service role keyは使わない。
  */
 export async function createSupabaseServerClient() {
-  const { supabaseUrl, supabaseAnonKey } = readPublicEnv();
+  // cookies()を先に呼び、build時の静的生成では環境変数の検証より前に動的描画へ切り替える
   const cookieStore = await cookies();
+  const { supabaseUrl, supabaseAnonKey } = readPublicEnv();
 
   return createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
