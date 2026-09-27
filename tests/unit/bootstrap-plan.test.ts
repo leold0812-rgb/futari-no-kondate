@@ -147,10 +147,16 @@ describe("planBootstrap", () => {
 });
 
 describe("checkSupabaseTarget", () => {
-  const ref = "abcdefghijklmnopqrst";
+  const ref = DEVELOPMENT_PROJECT_REF;
+  const otherRef = "abcdefghijklmnopqrst";
 
-  it("hosted URLとproject refが一致すれば許可する", () => {
+  it("Development projectのURLとrefが一致すれば許可する", () => {
     expect(checkSupabaseTarget(`https://${ref}.supabase.co`, ref)).toBeNull();
+  });
+
+  it("URLとrefの一致だけを見る（Development以外を操作してよいかは checkKnownProject が決める）", () => {
+    expect(checkSupabaseTarget(`https://${otherRef}.supabase.co`, otherRef)).toBeNull();
+    expect(checkKnownProject(otherRef, undefined)).toMatch("--production-ref");
   });
 
   it.each([
