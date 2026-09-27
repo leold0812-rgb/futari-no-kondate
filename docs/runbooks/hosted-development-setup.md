@@ -4,7 +4,7 @@ Supabase Development project（`futari-no-kondate-dev`）を、アプリが動�
 Claudeは資格情報（Supabaseのログイン、DB password、secret key）を扱わないため、**この手順はユーザーが自分のターミナルとDashboardで実行する**。
 Production projectには触れない（Productionは`production-checklist.md`で別に行う）。
 
-`<dev-ref>` はDevelopment projectのproject ref（Dashboard URLの `/project/<dev-ref>` 部分、20文字の英小文字）。
+Development projectのproject refは `jqkslfjdppwliugchwbm`（Dashboard URLの `/project/<ref>` 部分）。スクリプトはこのref以外のhosted projectを拒否する（Productionを取り違えないため）。
 
 ## 0. 前提
 
@@ -20,7 +20,7 @@ npx supabase login
 ```
 
 ```bash
-npx supabase link --project-ref <dev-ref>
+npx supabase link --project-ref jqkslfjdppwliugchwbm
 ```
 
 適用予定のmigrationだけが表示されることを確認する（まだ何も変わらない）。
@@ -61,7 +61,7 @@ Development projectのDashboardで次を設定する（ADR 0001の決定）。
 2. リポジトリ直下に `.env.bootstrap.local` を作り、次を書く（`.env*` はGit管理外。値をチャットやissueに貼らない）
 
 ```text
-NEXT_PUBLIC_SUPABASE_URL=https://<dev-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://jqkslfjdppwliugchwbm.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<Development の publishable key>
 SUPABASE_SERVICE_ROLE_KEY=<上で作った secret key>
 BOOTSTRAP_MEMBER_1_EMAIL=member-1@futari-no-kondate.invalid
@@ -78,23 +78,23 @@ BOOTSTRAP_MEMBER_2_DISPLAY_NAME=<2人目の表示名>
 まずdry-run（書き込まない）。予定の操作が「Authユーザー作成×2、CoupleSpace作成、profile作成×2」であることを確認する。
 
 ```bash
-node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project-ref <dev-ref>
+node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project-ref jqkslfjdppwliugchwbm
 ```
 
 実行する。
 
 ```bash
-node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project-ref <dev-ref> --apply
+node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project-ref jqkslfjdppwliugchwbm --apply
 ```
 
 もう一度実行して「変更なし」になることを確認する。
 
 ```bash
-node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project-ref <dev-ref> --apply
+node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project-ref jqkslfjdppwliugchwbm --apply
 ```
 
 - 「中止: 設定にないAuthユーザーが…」と出た場合は、Dashboard → Authenticationで既存ユーザーを確認する（スクリプトは既存ユーザーを削除しない）。
-- Authユーザーの作成がEmail provider無効を理由に失敗した場合（ローカルでは起きないことを確認済み）は、Bの3だけを一時的にONへ戻して実行し、完了後すぐOFFへ戻す。
+- Authユーザーの作成が失敗した場合は、Email providerを有効に戻さず（ADR 0001：有効中は匿名のログインメール送信要求が受理される）、出力をそのままClaudeへ渡す。ローカルではEmail provider無効でも作成できることを確認済み。
 - `.invalid` のアドレスが拒否された場合（`email_address_invalid` など）は、自分が管理するドメインの配送されないアドレス（例：Gmailの`+`付きアドレス）に変えて再実行する。Email providerは無効なのでメールは送られない。
 
 ## E. session発行のスモークテスト
@@ -102,7 +102,7 @@ node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project
 ADR 0001で未検証だった「hostedでもサーバー方式のsession発行が動くか」を確かめる。すべて `OK` なら完了。
 
 ```bash
-node --env-file=.env.bootstrap.local scripts/auth/smoke-session.mts --project-ref <dev-ref>
+node --env-file=.env.bootstrap.local scripts/auth/smoke-session.mts --project-ref jqkslfjdppwliugchwbm
 ```
 
 `NG` の項目があれば、出力をそのままClaudeへ渡す（token・keyの値は出力されない）。
