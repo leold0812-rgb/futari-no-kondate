@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { planBootstrap, validateMembers, type BootstrapState, type MemberConfig } from "@/scripts/auth/bootstrap-plan.mts";
-import { checkAdminKey, checkSupabaseTarget, DEVELOPMENT_PROJECT_REF } from "@/scripts/lib/supabase-target.mts";
+import { DEVELOPMENT_PROJECT_REF, checkAdminKey, checkKnownProject, checkSupabaseTarget } from "@/scripts/lib/supabase-target.mts";
 
 const members: MemberConfig[] = [
   { email: "member-1@example.invalid", displayName: "あお" },
@@ -154,8 +154,9 @@ describe("checkSupabaseTarget", () => {
     expect(checkSupabaseTarget(`https://${ref}.supabase.co`, ref)).toBeNull();
   });
 
-  it("URLとrefが一致していてもDevelopment以外（Productionなど）は拒否する", () => {
-    expect(checkSupabaseTarget(`https://${otherRef}.supabase.co`, otherRef)).toMatch("Development project");
+  it("URLとrefの一致だけを見る（Development以外を操作してよいかは checkKnownProject が決める）", () => {
+    expect(checkSupabaseTarget(`https://${otherRef}.supabase.co`, otherRef)).toBeNull();
+    expect(checkKnownProject(otherRef, undefined)).toMatch("--production-ref");
   });
 
   it.each([
@@ -170,6 +171,20 @@ describe("checkSupabaseTarget", () => {
 
   it("ローカルSupabaseは --project-ref local で許可する", () => {
     expect(checkSupabaseTarget("http://127.0.0.1:54321", "local")).toBeNull();
+  });
+});
+
+describe("checkKnownProject", () => {
+  it("ローカルとhosted Developmentは許可する", () => {
+    expect(checkKnownProject("local", undefined)).toBeNull();
+    expect(checkKnownProject(DEVELOPMENT_PROJECT_REF, undefined)).toBeNull();
+  });
+
+  it("それ以外のprojectは --production-ref に同じrefを書いたときだけ許可する", () => {
+    const other = "zzzzzzzzzzzzzzzzzzzz";
+    expect(checkKnownProject(other, undefined)).not.toBeNull();
+    expect(checkKnownProject(other, DEVELOPMENT_PROJECT_REF)).not.toBeNull();
+    expect(checkKnownProject(other, other)).toBeNull();
   });
 });
 

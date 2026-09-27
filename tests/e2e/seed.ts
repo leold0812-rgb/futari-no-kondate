@@ -51,3 +51,21 @@ export async function seedMainRecipes(names: string[], options: { dishType?: "MA
     });
   }
 }
+
+/** 架空の食品（テスト用の値。実在の食品成分表の値ではない）を登録する */
+export async function seedFood(name: string, foodNumber: string, values: { energy: number; protein: number; fat: number; carbs: number }) {
+  const client = admin();
+  const { error } = await client.from("food_composition_items").upsert(
+    {
+      source_version: "E2Eテスト用",
+      food_number: foodNumber,
+      name,
+      energy_kcal: values.energy,
+      protein_g: values.protein,
+      fat_g: values.fat,
+      carbs_g: values.carbs,
+    },
+    { onConflict: "source_version,food_number" },
+  );
+  if (error) throw new Error(error.message);
+}

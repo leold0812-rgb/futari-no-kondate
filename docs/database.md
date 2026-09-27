@@ -167,6 +167,15 @@ migration: `supabase/migrations/20261004090000_create_meal_histories.sql`。テ�
 - 関数（`SECURITY DEFINER`・自分のspaceを確認）：`complete_meal_set(meal_set, key)`（献立セットの行ロック、冪等キー・作った済みなら何もしない、食事履歴・調理履歴・在庫の減算（`private.consume_recipe`→`inventory_consume`、理由COOKED）・献立セットを1 transactionで。全部作ったら週をCOMPLETED。初めて作った料理のIDを返す）、`complete_free_meal`（余裕日、advisory lockで冪等）、`swap_meal_set_dish`（楽観ロック・同じ種類のREADYだけ・作った後は不可）
 - 栄養の写し：作った時点のレシピの1人前の値と各自のご飯量を、DB内の`private.meal_nutrition`で算出（クライアントの値は受け取らない）。エネルギー・PFCのどれかが無い料理は推測せず未登録として残す。余裕日は2人分・READYのレシピのみ
 
+## 確定済みschema: 食品成分表と栄養計算（Gate 2b）
+
+migration: `supabase/migrations/20261005090000_create_food_composition.sql`。テスト: `supabase/tests/database/food_composition.test.sql`、`tests/unit/nutrition-recipe.test.ts`、`tests/unit/food-csv.test.ts`。
+
+- `food_composition_items`（版・食品番号で一意、可食部100g当たりのエネルギー・たんぱく質・脂質・炭水化物）。全space共通の参照データで、利用者は読むだけ。取り込みは`scripts/nutrition/import-food-composition.mts`（service role、ユーザーが公式データからCSVを用意）
+- `ingredients`に`food_item_id`・`grams_per_unit`（1個当たりg）・`grams_per_ml`（1ml当たりg）
+- レシピの1人前は`lib/nutrition/recipe.ts`で計算し、手入力が無いレシピだけ`nutrition_source = CALCULATED`で保存（レシピ保存時・材料の対応付けを変えた時）。換算できない材料があれば保存しない（古い計算値は消す）
+- `rice_nutrition_per_100g(food_number default '01088')`、`private.meal_nutrition`を置き換えて作ったときの栄養の写しにご飯を加える
+
 ## 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。

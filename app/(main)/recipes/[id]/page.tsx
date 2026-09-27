@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PreferenceControls } from "@/components/recipes/preference-controls";
 import { RecipeImage } from "@/components/recipes/recipe-image";
@@ -14,6 +15,7 @@ import {
   RECIPE_STATUS_LABELS,
 } from "@/lib/recipes/constants";
 import { getPartner } from "@/lib/services/members";
+import { calculateForRecipe } from "@/lib/services/nutrition";
 import { getRecipeDetail } from "@/lib/services/recipes";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { deleteRecipeAction, setFavoriteAction, setRatingAction } from "../actions";
@@ -30,9 +32,10 @@ export default async function RecipeDetailPage({ params, searchParams }: PagePro
   const { id } = await params;
   const { notice } = await searchParams;
   const supabase = await createSupabaseServerClient();
-  const [recipe, partner] = await Promise.all([
+  const [recipe, partner, calculation] = await Promise.all([
     getRecipeDetail(supabase, member.userId, id).catch(() => null),
     getPartner(supabase, member),
+    calculateForRecipe(supabase, id).catch(() => null),
   ]);
   if (!recipe) notFound();
 
@@ -165,11 +168,26 @@ export default async function RecipeDetailPage({ params, searchParams }: PagePro
               </div>
             </dl>
             <p className={styles.muted}>
-              {recipe.nutrition.source === "CALCULATED" ? "食品成分表から計算した値（ご飯は含みません）" : "手入力の値（ご飯は含みません）"}
+              {recipe.nutrition.source === "CALCULATED"
+                ? `${calculation?.sourceVersions.length ? calculation.sourceVersions.join("・") : "食品成分表"}から計算した値（ご飯は含みません）`
+                : "手入力の値（ご飯は含みません）"}
             </p>
+            {recipe.nutrition.source === "CALCULATED" && calculation && calculation.uncounted.length > 0 ? (
+              <p className={styles.muted}>量が決まっていない材料（{calculation.uncounted.join("、")}）は計算に含みません。</p>
+            ) : null}
           </>
         ) : (
-          <p className={styles.muted}>栄養の値は未登録です。わかる場合は編集から入力できます。</p>
+          <>
+            <p className={styles.muted}>栄養の値は未登録です。わかる場合は編集から入力できます。</p>
+            {calculation && (calculation.unmapped.length > 0 || calculation.unconvertible.length > 0) ? (
+              <p className={styles.muted}>
+                食品成分表から計算するには、材料の設定が必要です：
+                {[...calculation.unmapped.map((n) => `${n}（食品の選択）`), ...calculation.unconvertible.map((n) => `${n}（重さの換算）`)].join("、")}
+                <br />
+                <Link href="/inventory/ingredients">材料の設定を開く</Link>
+              </p>
+            ) : null}
+          </>
         )}
       </Card>
 

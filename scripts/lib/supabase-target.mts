@@ -6,15 +6,26 @@
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 /**
- * 管理スクリプトが操作してよいhosted project（Development: futari-no-kondate-dev）。
- * project refは公開URLの一部で秘密値ではない。Productionへの操作は本番導入チェックリストで別に扱い、
- * これらのスクリプトからは実行できないようにする。
+ * 管理スクリプトが既定で操作してよいhosted project（Development: futari-no-kondate-dev）。
+ * project refは公開URLの一部で秘密値ではない。これ以外（Production）は checkKnownProject の二重指定でだけ操作する
+ * （本番導入チェックリストでbootstrap・PIN設定・成分表の取り込みに使うため）。
  */
 export const DEVELOPMENT_PROJECT_REF = "jqkslfjdppwliugchwbm";
 
 /**
+ * 操作してよいprojectかを確かめる。ローカルとhosted Developmentは許可し、
+ * それ以外（Productionなど）は `--production-ref` に同じrefをもう一度書いたときだけ許可する（取り違え防止）。
+ */
+export function checkKnownProject(projectRef: string | undefined, productionRef: string | undefined): string | null {
+  if (!projectRef || projectRef === "local" || projectRef === DEVELOPMENT_PROJECT_REF) return null;
+  if (productionRef && productionRef === projectRef) return null;
+  return `hosted Development（${DEVELOPMENT_PROJECT_REF}）とローカル以外のprojectです。本番などを操作するときだけ --production-ref に同じrefを指定してください。`;
+}
+
+/**
  * `--project-ref` の指定とURLが一致するかを確かめる。
- * hostedは `https://<Development ref>.supabase.co` のみ許可し、ローカルSupabaseは `--project-ref local` を必須にする。
+ * hostedは `https://<ref>.supabase.co` の形だけを許可し、ローカルSupabaseは `--project-ref local` を必須にする。
+ * どのprojectを操作してよいか（Developmentだけか、本番も明示したか）は checkKnownProject で確かめる。
  * 問題があれば日本語の理由を返し、問題がなければnullを返す。
  */
 export function checkSupabaseTarget(supabaseUrl: string, projectRef: string | undefined): string | null {
@@ -43,9 +54,6 @@ export function checkSupabaseTarget(supabaseUrl: string, projectRef: string | un
   }
   if (match[1] !== projectRef) {
     return "URLのproject refと --project-ref が一致しません。操作対象のprojectを確認してください。";
-  }
-  if (projectRef !== DEVELOPMENT_PROJECT_REF) {
-    return "このスクリプトはDevelopment project（futari-no-kondate-dev）専用です。Productionなど他のprojectは操作できません。";
   }
   return null;
 }

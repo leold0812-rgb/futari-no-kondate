@@ -11,14 +11,17 @@
 import { createClient } from "@supabase/supabase-js";
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
-import { checkAdminKey, checkSupabaseTarget } from "../lib/supabase-target.mts";
+import { checkAdminKey, checkKnownProject, checkSupabaseTarget } from "../lib/supabase-target.mts";
 
 const NO_PERSIST = { auth: { autoRefreshToken: false, persistSession: false } } as const;
 
 type Check = { name: string; ok: boolean; detail: string };
 
 async function main() {
-  const { values } = parseArgs({ options: { "project-ref": { type: "string" } }, strict: true });
+  const { values } = parseArgs({
+    options: { "project-ref": { type: "string" }, "production-ref": { type: "string" } },
+    strict: true,
+  });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ?? "";
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
@@ -26,6 +29,7 @@ async function main() {
 
   const problem =
     checkSupabaseTarget(url, values["project-ref"]) ??
+    checkKnownProject(values["project-ref"], values["production-ref"]) ??
     checkAdminKey(serviceKey) ??
     (anonKey ? null : "NEXT_PUBLIC_SUPABASE_ANON_KEY が設定されていません。") ??
     (email ? null : "BOOTSTRAP_MEMBER_1_EMAIL が設定されていません。");

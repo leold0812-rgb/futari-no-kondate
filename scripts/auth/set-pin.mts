@@ -10,7 +10,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { parseArgs } from "node:util";
 import { hashPin, validateNewPin, validatePepper } from "../../lib/auth/pin.ts";
-import { checkAdminKey, checkSupabaseTarget } from "../lib/supabase-target.mts";
+import { checkAdminKey, checkKnownProject, checkSupabaseTarget } from "../lib/supabase-target.mts";
 
 function fail(message: string): never {
   console.error(`エラー: ${message}`);
@@ -66,6 +66,7 @@ async function main() {
   const { values } = parseArgs({
     options: {
       "project-ref": { type: "string" },
+      "production-ref": { type: "string" },
       member: { type: "string" },
       "pin-stdin": { type: "boolean", default: false },
     },
@@ -75,7 +76,9 @@ async function main() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
   const pepper = process.env.PIN_PEPPER ?? "";
-  const problem = checkSupabaseTarget(url, values["project-ref"]) ?? checkAdminKey(key) ?? validatePepper(pepper);
+  const problem = checkSupabaseTarget(url, values["project-ref"]) ??
+    checkKnownProject(values["project-ref"], values["production-ref"]) ??
+    checkAdminKey(key) ?? validatePepper(pepper);
   if (problem) fail(problem);
   if (values.member !== "1" && values.member !== "2") fail("--member 1 または --member 2 を指定してください。");
   const email = process.env[`BOOTSTRAP_MEMBER_${values.member}_EMAIL`]?.trim().toLowerCase() ?? "";
