@@ -56,7 +56,7 @@ type LineRow = {
 async function loadRecipes(supabase: SupabaseClient, ids: string[]) {
   const unique = [...new Set(ids)];
   if (unique.length === 0) return { recipes: new Map<string, RecipeRow>(), lines: new Map<string, LineRow[]>() };
-  const [{ data: recipes }, { data: lines }] = await Promise.all([
+  const [{ data: recipes, error: recipeError }, { data: lines, error: lineError }] = await Promise.all([
     supabase.from("recipes").select("id, name, dish_type, status, servings, one_dish, tags").in("id", unique),
     supabase
       .from("recipe_ingredients")
@@ -64,6 +64,7 @@ async function loadRecipes(supabase: SupabaseClient, ids: string[]) {
       .in("recipe_id", unique)
       .order("sort_order"),
   ]);
+  if (recipeError || lineError) throw new Error(`レシピを読み込めませんでした: ${(recipeError ?? lineError)!.message}`);
   const byRecipe = new Map<string, LineRow[]>();
   for (const row of (lines ?? []) as unknown as LineRow[]) {
     const ingredient = Array.isArray(row.ingredients) ? row.ingredients[0] : row.ingredients;
@@ -74,11 +75,13 @@ async function loadRecipes(supabase: SupabaseClient, ids: string[]) {
 
 /** 在庫（材料IDごと）と「そろそろ使いたい」の材料ID */
 async function loadStock(supabase: SupabaseClient, today: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("inventory_items")
     .select("ingredient_id, quantity, unit, purchased_on, ingredients(storage_days)")
     .gt("quantity", 0)
     .limit(5000);
+  // 在庫を読めないまま作ると、在庫を差し引かない（買いすぎる）リストになるため止める
+  if (error) throw new Error(`在庫を読み込めませんでした: ${error.message}`);
   const rows = (data ?? []) as unknown as {
     ingredient_id: string;
     quantity: number;
@@ -118,14 +121,15 @@ export async function prepareShoppingForPlan(supabase: SupabaseClient, planId: s
   // 1. 副菜・汁物（まだ一度も設定していない計画だけ自動で選ぶ）
   const needsSides = mealSets.length > 0 && mealSets.every((s) => !s.side_recipe_id && !s.soup_recipe_id);
   if (needsSides) {
-    const { data: candidates } = await supabase
+    const { data: candidates, error: candidateError } = await supabase
       .from("recipes")
       .select("id, name, dish_type, tags")
       .in("dish_type", ["SIDE", "SOUP"])
       .eq("status", "READY")
       .is("deleted_at", null)
       .limit(1000);
-    const { data: never } = await supabase.from("recipe_ratings").select("recipe_id").eq("rating", "NEVER_AGAIN");
+    const { data: never, error: neverError } = await supabase.from("recipe_ratings").select("recipe_id").eq("rating", "NEVER_AGAIN");
+    if (candidateError || neverError) throw new Error(`副菜・汁物の候補を読み込めませんでした: ${(candidateError ?? neverError)!.message}`);
     const excluded = new Set((never ?? []).map((r) => r.recipe_id as string));
     const dishIds = (candidates ?? []).filter((c) => !excluded.has(c.id)).map((c) => c.id as string);
     const mainIds = mealSets.map((s) => s.main_recipe_id as string);
@@ -170,11 +174,12 @@ export async function prepareShoppingForPlan(supabase: SupabaseClient, planId: s
   }
 
   // 2. 材料の合算（最新の献立セットを読み直す）
-  const { data: latest } = await supabase
+  const { data: latest, error: latestError } = await supabase
     .from("meal_sets")
     .select("main_recipe_id, side_recipe_id, soup_recipe_id, servings, status")
     .eq("weekly_plan_id", planId)
     .eq("status", "PLANNED");
+  if (latestError) throw new Error(`献立を読み込めませんでした: ${latestError.message}`);
   const dishRefs = (latest ?? []).flatMap((s) =>
     [s.main_recipe_id, s.side_recipe_id, s.soup_recipe_id]
       .filter((id): id is string => Boolean(id))

@@ -1,7 +1,7 @@
 -- Gate 6: 副菜・汁物の設定と買い物リスト（家にあるチェック・保険食材・購入済み・カテゴリ順）
 begin;
 
-select plan(25);
+select plan(27);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -64,6 +64,12 @@ select public.prepare_shopping_list('40000000-0000-4000-8000-000000000001', '[
 ]');
 
 -- 家にあるチェック
+select throws_ok(
+  $$select public.set_purchased((select id from public.shopping_items where name = '玉ねぎ'), true)$$,
+  '55000',
+  null,
+  '確定前の買い物リストでは購入済みにできない'
+);
 select public.set_home_check((select id from public.shopping_items where name = '玉ねぎ'), true);
 select is(
   (select row(quantity, unit)::text from public.inventory_items where ingredient_id = '30000000-0000-4000-8000-000000000002'),
@@ -97,6 +103,12 @@ select throws_ok(
   '55000',
   null,
   '確定後は家にあるチェックを変えられない'
+);
+select throws_ok(
+  $$select public.set_meal_set_sides('40000000-0000-4000-8000-000000000001', '[]')$$,
+  '55000',
+  null,
+  '買い物リストの確定後は副菜・汁物を一括設定できない'
 );
 select is(
   public.prepare_shopping_list('40000000-0000-4000-8000-000000000001', '[]'),

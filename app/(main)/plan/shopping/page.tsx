@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { RealtimeRefresh } from "@/components/realtime/realtime-refresh";
 import styles from "@/components/shopping/shopping.module.css";
 import { Alert } from "@/components/ui/alert";
 import { Button, buttonClassName, LinkButton } from "@/components/ui/button";
@@ -19,7 +20,7 @@ export const metadata: Metadata = { title: "買い物の準備 | ふたりの献
  * 副菜・汁物の確認 → 家にあるものチェック → 保険食材（任意）→ 買い物リストを確定。
  */
 export default async function ShoppingPrepPage({ searchParams }: PageProps<"/plan/shopping">) {
-  await requireMember();
+  const member = await requireMember();
   const params = await searchParams;
   const week = resolvePlanWeek(params.week);
   const supabase = await createSupabaseServerClient();
@@ -91,7 +92,11 @@ export default async function ShoppingPrepPage({ searchParams }: PageProps<"/pla
     <>
       {header}
       {params.notice === "plan-confirmed" ? <Alert tone="success">献立を決めました。副菜・汁物と買い物リストを用意しました。</Alert> : null}
-      {params.error === "save" ? <Alert tone="error">保存できませんでした。もう一度お試しください。</Alert> : null}
+      <RealtimeRefresh tables={["shopping_items", "shopping_lists", "meal_sets"]} coupleSpaceId={member.coupleSpaceId} />
+      {params.error === "save" || params.error === "remove" ? <Alert tone="error">保存できませんでした。もう一度お試しください。</Alert> : null}
+      {params.error === "confirm" ? (
+        <Alert tone="error">買い物リストを確定できませんでした（まだ確定していません）。通信状態を確認して、もう一度「確定」を押してください。</Alert>
+      ) : null}
 
       <section className={styles.section} aria-labelledby="meals-heading">
         <h2 id="meals-heading" className={styles.sectionTitle}>
@@ -192,7 +197,7 @@ export default async function ShoppingPrepPage({ searchParams }: PageProps<"/pla
         )}
       </section>
 
-      <form action={confirmShoppingListAction.bind(null, list.id)}>
+      <form action={confirmShoppingListAction.bind(null, list.id, week)}>
         <Button type="submit" size="large" block>
           4. この内容で買い物リストを確定
         </Button>

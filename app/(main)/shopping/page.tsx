@@ -36,6 +36,7 @@ export default async function ShoppingPage({ searchParams }: PageProps<"/shoppin
     <>
       <PageHeader title="買い物" />
       <RealtimeRefresh tables={["shopping_items", "shopping_lists"]} coupleSpaceId={member.coupleSpaceId} />
+      {params.error === "remove" ? <Alert tone="error">項目を外せませんでした。もう一度お試しください。</Alert> : null}
       {params.notice === "confirmed" ? <Alert tone="success">買い物リストを確定しました。買った物を押すと在庫に入ります。</Alert> : null}
       {draftWeek ? (
         <Alert tone="info">

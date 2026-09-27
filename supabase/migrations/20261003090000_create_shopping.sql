@@ -105,8 +105,14 @@ as $$
 declare
   v_space uuid := private.current_couple_space_id();
 begin
-  if not exists (select 1 from public.weekly_plans as p where p.id = p_plan_id and p.couple_space_id = v_space) then
-    raise exception 'weekly plan not found' using errcode = 'P0002';
+  if not exists (
+    select 1 from public.weekly_plans as p where p.id = p_plan_id and p.couple_space_id = v_space and p.status = 'CONFIRMED'
+  ) then
+    raise exception 'confirmed weekly plan not found' using errcode = 'P0002';
+  end if;
+  -- 買い物リストを確定した後は、リストと献立が食い違わないよう一括設定しない（個別の差し替えはGate 7）
+  if exists (select 1 from public.shopping_lists as l where l.weekly_plan_id = p_plan_id and l.status = 'CONFIRMED') then
+    raise exception 'shopping list is already confirmed' using errcode = '55000';
   end if;
   update public.meal_sets as m
   set side_recipe_id = nullif(s.value ->> 'side_recipe_id', '')::uuid,
@@ -341,6 +347,10 @@ begin
   select * into v_item from public.shopping_items as i where i.id = p_item_id and i.couple_space_id = v_space for update;
   if not found then
     raise exception 'shopping item not found' using errcode = 'P0002';
+  end if;
+  -- 購入済みにできるのは確定した買い物リストだけ（準備中は「家にある」チェックを使う）
+  if (select l.status from public.shopping_lists as l where l.id = v_item.shopping_list_id) <> 'CONFIRMED' then
+    raise exception 'shopping list is not confirmed yet' using errcode = '55000';
   end if;
 
   if coalesce(p_purchased, false) then

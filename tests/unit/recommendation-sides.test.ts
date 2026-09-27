@@ -40,7 +40,8 @@ describe("副菜・汁物の自動設定", () => {
       ],
       context,
     );
-    expect(result[0].side).toEqual({ recipeId: "s-cabbage", reasons: ["献立の材料を使い回せる"] });
+    expect(result[0].side?.recipeId).toBe("s-cabbage");
+    expect(result[0].side?.reasons).toContain("献立の材料を使い回せる");
     expect(result[0].soup?.recipeId).toBe("soup-tofu");
   });
 
@@ -85,5 +86,21 @@ describe("副菜・汁物の自動設定", () => {
   it("同じ入力なら同じ結果（決定的）", () => {
     const dishes = [dish("b"), dish("a"), dish("c", { dishType: "SOUP" })];
     expect(chooseSidesAndSoups([main("m")], dishes, context)).toEqual(chooseSidesAndSoups([main("m")], [...dishes].reverse(), context));
+  });
+
+  it("組み合わせ全体で、新しく買う材料が増えすぎない副菜・汁物に見直す", () => {
+    // 主菜の順に選ぶと、1品目は点の高い「材料の多い副菜」になるが、全体では同じ材料を使い回す組み合わせの方が買う物が少ない
+    const result = chooseSidesAndSoups(
+      [main("m1", { ingredientIds: ["pork"] }), main("m2", { ingredientIds: ["fish"] })],
+      [
+        dish("a-many", { ingredientIds: ["x1", "x2", "x3", "x4", "x5", "spinach"], lowCalorie: true }),
+        dish("b-share", { ingredientIds: ["cabbage"] }),
+        dish("c-share", { ingredientIds: ["cabbage"] }),
+      ],
+      context,
+    );
+    const picked = result.map((r) => r.side?.recipeId).sort();
+    expect(picked).toEqual(["b-share", "c-share"]);
+    expect(result.some((r) => r.notes.some((n) => n.includes("組み合わせ全体で見直しました")))).toBe(true);
   });
 });

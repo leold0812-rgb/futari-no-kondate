@@ -68,18 +68,24 @@ export async function addInsuranceAction(
 export async function removeItemAction(itemId: string, returnTo: string): Promise<void> {
   await requireMember();
   const target = returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/shopping";
-  if (UUID_PATTERN.test(itemId)) {
-    await rpcOrThrow(await createSupabaseServerClient(), "remove_shopping_item", { p_item_id: itemId }, "項目を外せませんでした").catch(() => undefined);
+  let failed = !UUID_PATTERN.test(itemId);
+  if (!failed) {
+    failed = await rpcOrThrow(await createSupabaseServerClient(), "remove_shopping_item", { p_item_id: itemId }, "項目を外せませんでした")
+      .then(() => false)
+      .catch(() => true);
   }
   revalidatePath("/shopping");
   revalidatePath("/plan/shopping");
-  redirect(target);
+  redirect(failed ? `${target}${target.includes("?") ? "&" : "?"}error=remove` : target);
 }
 
-export async function confirmShoppingListAction(listId: string): Promise<void> {
+export async function confirmShoppingListAction(listId: string, week: string): Promise<void> {
   await requireMember();
   if (!UUID_PATTERN.test(listId)) redirect("/shopping");
-  await rpcOrThrow(await createSupabaseServerClient(), "confirm_shopping_list", { p_list_id: listId }, "買い物リストを確定できませんでした");
+  const failed = await rpcOrThrow(await createSupabaseServerClient(), "confirm_shopping_list", { p_list_id: listId }, "買い物リストを確定できませんでした")
+    .then(() => false)
+    .catch(() => true);
+  if (failed) redirect(`/plan/shopping?week=${resolvePlanWeek(week)}&error=confirm`);
   revalidatePath("/shopping");
   revalidatePath("/");
   redirect("/shopping?notice=confirmed");
