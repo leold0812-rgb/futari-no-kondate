@@ -43,7 +43,7 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - migration `20261005090000_create_food_composition.sql`、`scripts/nutrition/`（CSV読み取り・取り込み）、`lib/nutrition/recipe.ts`、`lib/services/nutrition.ts`
 - 画面：`/inventory/ingredients/[id]`（食品の検索・選択、重さへの換算）、レシピ詳細に計算の出典と不足している材料の案内。レシピ保存・対応付け変更で自動計算
 - 手順書「I. 食品成分表の取り込み」（ユーザー作業）
-- テスト：単体（計算・CSV）、pgTAP `food_composition.test.sql`（10件）、E2E `08-nutrition.spec.ts`（架空の食品で計算を確認）
+- テスト：単体（計算・CSV）、pgTAP `food_composition.test.sql`（15件）、E2E `08-nutrition.spec.ts`（架空の食品で計算を確認）
 
 ### Gate 7: 日常利用（PR作成時点）
 
