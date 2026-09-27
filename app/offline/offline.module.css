@@ -1,0 +1,17 @@
+.page {
+  display: grid;
+  gap: 16px;
+  width: 100%;
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: calc(var(--safe-top) + 48px) calc(var(--safe-right) + var(--space-gutter)) calc(var(--safe-bottom) + 24px)
+    calc(var(--safe-left) + var(--space-gutter));
+}
+
+.title {
+  font-size: 1.375rem;
+}
+
+.text {
+  color: var(--color-text-muted);
+}

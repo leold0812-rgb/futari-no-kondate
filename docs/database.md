@@ -176,6 +176,14 @@ migration: `supabase/migrations/20261005090000_create_food_composition.sql`。�
 - レシピの1人前は`lib/nutrition/recipe.ts`で計算し、手入力が無いレシピだけ`nutrition_source = CALCULATED`で保存（レシピ保存時・材料の対応付けを変えた時）。換算できない材料があれば保存しない（古い計算値は消す）
 - `rice_nutrition_per_100g(food_number default '01088')`、`private.meal_nutrition`を置き換えて作ったときの栄養の写しにご飯を加える
 
+## 確定済みschema: 体重とバックアップ（Gate 8）
+
+migration: `supabase/migrations/20261006090000_create_weight_records.sql`。テスト: `supabase/tests/database/weight_records.test.sql`、`tests/unit/records-summary.test.ts`、`tests/unit/backup-core.test.ts`、CIの復元テスト（`scripts/backup/roundtrip-check.mts`）。
+
+- `weight_records`（user_id既定`auth.uid()`、measured_on、weight_kg 20〜300・小数1桁、`(user_id, measured_on)` unique）。`couple_space_id`を持たず、policyは本人の行だけselect/insert/update/delete。Realtimeのpublicationに入れない。同じ日の入力は上書き（upsert）
+- 記録画面の週平均夕食カロリーは`meal_histories.nutrition_per_person`の本人の値のうち完全なものだけで平均する（`lib/records/summary.ts`）
+- バックアップ（`lib/backup/core.mts`）はservice roleでpublicの利用データを主キー順に読み、gzip JSONでprivate Blobへ保存。対象外：`private.pin_credentials`・`login_throttles`・`recipe_import_logs`・auth.users・画像ファイル。復元は空のprojectへ外部キーの親から入れ、`recommendation_runs.seq`（常に生成されるidentity）は外して元の順に採番し直す
+
 ## 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。

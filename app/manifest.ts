@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-// Service Worker / offline cache はまだ導入しない（Gate 8で検討）
+// Service Worker（public/sw.js）はオフライン時の案内ページだけを持つ。利用データはキャッシュしない
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "ふたりの献立",
@@ -14,13 +14,10 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#f7f3ea",
     theme_color: "#f7f3ea",
     icons: [
-      {
-        // 仮アイコン。正式なPNG（192/512・apple-touch-icon）は後続作業で差し替える
-        src: "/icons/icon.svg",
-        sizes: "any",
-        type: "image/svg+xml",
-        purpose: "any",
-      },
+      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icons/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
     ],
   };
 }
