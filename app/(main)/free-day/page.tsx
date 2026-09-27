@@ -41,8 +41,17 @@ export default async function FreeDayPage() {
     if (status === "USE_SOON" || status === "PAST_ESTIMATE") useSoon.add(s.ingredient_id);
   }
   const neverIds = new Set((never ?? []).map((r) => r.recipe_id as string));
+  // 今日作った料理は、並びの計算では「今日の分」を数えず、カードに「作った」を残す。
+  // 押した直後の再描画で並びが変わると、そのカード（と結果・初回評価の表示）が消えてしまうため
   const last = new Map<string, string>();
-  for (const h of histories ?? []) if ((last.get(h.recipe_id) ?? "") < h.cooked_on) last.set(h.recipe_id, h.cooked_on);
+  const cookedToday = new Set<string>();
+  for (const h of histories ?? []) {
+    if (h.cooked_on === today) {
+      cookedToday.add(h.recipe_id as string);
+      continue;
+    }
+    if ((last.get(h.recipe_id) ?? "") < h.cooked_on) last.set(h.recipe_id, h.cooked_on);
+  }
   const input: FreeDayRecipe[] = (recipes ?? []).map((r) => ({
     id: r.id as string,
     name: r.name as string,
@@ -77,7 +86,15 @@ export default async function FreeDayPage() {
             </p>
             <p className={styles.muted}>{c.reasons.join("・")}</p>
             <p className={styles.muted}>{c.missing.length === 0 ? "買い足しなし" : `買い足し：${c.missing.join("、")}`}</p>
-            <CompleteButton targetId={c.recipeId} label="これを作った" action={completeFreeMealAction} setRatingAction={setRatingAction} sticky={false} />
+            <CompleteButton
+              targetId={c.recipeId}
+              label="これを作った"
+              action={completeFreeMealAction}
+              setRatingAction={setRatingAction}
+              sticky={false}
+              done={cookedToday.has(c.recipeId)}
+            />
+            {cookedToday.has(c.recipeId) ? <p className={styles.muted}>✓ 今日作りました</p> : null}
           </Card>
         ))
       )}
