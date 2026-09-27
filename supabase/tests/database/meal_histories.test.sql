@@ -1,7 +1,7 @@
 -- Gate 7: 作った（冪等・在庫減算・履歴）、差し替え（楽観ロック）、ご飯量、余裕日
 begin;
 
-select plan(23);
+select plan(24);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -123,6 +123,17 @@ select is(
   (select (value ->> 'already')::boolean from (select public.complete_free_meal('20000000-0000-4000-8000-000000000005', 'key-free-0001') as value) as r),
   true,
   '余裕日の作ったも冪等'
+);
+
+reset role;
+insert into public.recipes (id, couple_space_id, name, status) values
+  ('20000000-0000-4000-8000-000000000006', '10000000-0000-4000-8000-000000000001', 'url-only', 'URL_ONLY');
+set local role authenticated;
+select throws_ok(
+  $$select public.complete_free_meal('20000000-0000-4000-8000-000000000006', 'key-free-0002')$$,
+  'P0002',
+  null,
+  'URLだけのレシピは作ったを記録できない（READYのみ）'
 );
 
 -- ご飯量

@@ -17,6 +17,13 @@ describe("献立セットの1人分の栄養", () => {
     expect(n.missing).toEqual(["おひたし", "ご飯"]);
     expect(n.energyKcal).toBe(500);
   });
+  it("エネルギーだけ登録されPFCが未登録の料理は、0として合算せず未登録にする", () => {
+    const n = personNutrition([{ name: "一部だけ", nutrition: { energyKcal: 300, proteinG: null, fatG: 5, carbsG: 10 } }], 0, null);
+    expect(n.complete).toBe(false);
+    expect(n.missing).toEqual(["一部だけ"]);
+    expect(n.energyKcal).toBe(0);
+  });
+
   it("ご飯なし（0g）ならご飯の栄養は不要", () => {
     expect(personNutrition(dishes, 0, null).complete).toBe(true);
   });

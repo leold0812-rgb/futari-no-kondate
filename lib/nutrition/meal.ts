@@ -28,14 +28,15 @@ export function personNutrition(
   const missing: string[] = [];
   const total = { energyKcal: 0, proteinG: 0, fatG: 0, carbsG: 0 };
   for (const dish of dishes) {
-    if (dish.nutrition.energyKcal === null) {
+    const n = dish.nutrition;
+    if (n.energyKcal === null || n.proteinG === null || n.fatG === null || n.carbsG === null) {
       missing.push(dish.name);
       continue;
     }
-    total.energyKcal += dish.nutrition.energyKcal;
-    total.proteinG += dish.nutrition.proteinG ?? 0;
-    total.fatG += dish.nutrition.fatG ?? 0;
-    total.carbsG += dish.nutrition.carbsG ?? 0;
+    total.energyKcal += n.energyKcal;
+    total.proteinG += n.proteinG;
+    total.fatG += n.fatG;
+    total.carbsG += n.carbsG;
   }
   if (riceGrams > 0) {
     if (ricePer100g?.energyKcal != null) {

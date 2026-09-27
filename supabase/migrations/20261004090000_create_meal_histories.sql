@@ -137,7 +137,10 @@ as $$
            coalesce(sum(d.protein_g), 0) as protein,
            coalesce(sum(d.fat_g), 0) as fat,
            coalesce(sum(d.carbs_g), 0) as carbs,
-           coalesce(jsonb_agg(d.name) filter (where d.energy_kcal is null), '[]'::jsonb) as missing
+           -- エネルギー・PFCのどれかが未登録の料理は、未登録として残す（0として扱わない）
+           coalesce(jsonb_agg(d.name) filter (
+             where d.energy_kcal is null or d.protein_g is null or d.fat_g is null or d.carbs_g is null
+           ), '[]'::jsonb) as missing
     from dishes as d
   )
   select coalesce(jsonb_object_agg(
@@ -256,7 +259,8 @@ begin
     raise exception 'not a member of any couple space' using errcode = '42501';
   end if;
   if not exists (
-    select 1 from public.recipes as r where r.id = p_recipe_id and r.couple_space_id = v_space and r.deleted_at is null
+    select 1 from public.recipes as r
+    where r.id = p_recipe_id and r.couple_space_id = v_space and r.deleted_at is null and r.status = 'READY'
   ) then
     raise exception 'recipe not found' using errcode = 'P0002';
   end if;
