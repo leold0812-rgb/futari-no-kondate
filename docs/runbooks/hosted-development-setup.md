@@ -57,7 +57,7 @@ Development projectのDashboardで次を設定する（ADR 0001の決定）。
 
 ## C. 管理用secret keyの準備
 
-1. Settings → API Keys → Secret keys →「New secret key」で名前 `local-admin` のキーを作る（既存のキーは使わない。不要になったらこのキーだけ削除できる）
+1. Settings → API Keys → Secret keys →「New secret key」で名前 `localadmin` のキーを作る（既存のキーは使わない。不要になったらこのキーだけ削除できる）
 2. リポジトリ直下に `.env.bootstrap.local` を作り、次を書く（`.env*` はGit管理外。値をチャットやissueに貼らない）
 
 ```text
@@ -138,7 +138,7 @@ PreviewデプロイでログインできるようにDevelopment用の値を登�
 
 | 変数 | 値 |
 |---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | Development projectで新しく作ったsecret key（名前 `vercel-preview`。Cで作ったローカル用とは分ける） |
+| `SUPABASE_SERVICE_ROLE_KEY` | Development projectで新しく作ったsecret key（名前 `vercelpreview`。Cで作ったローカル用とは分ける） |
 | `PIN_PEPPER` | Fと同じ値 |
 
 - Production環境には登録しない（Productionは本番導入チェックリストで別の値を作る）。
@@ -189,5 +189,5 @@ node --env-file=.env.bootstrap.local scripts/nutrition/import-food-composition.m
 
 ## 後片付け・漏えい時
 
-- secret keyが漏れた疑いがあれば、Settings → API Keysで `local-admin` を削除し、新しいキーを作ってC以降をやり直す。
+- secret keyが漏れた疑いがあれば、Settings → API Keysで `localadmin` を削除し、新しいキーを作ってC以降をやり直す。
 - 登録をやり直したい場合（破壊的操作）：Dashboard → Authenticationで2人のユーザーを削除すると、profilesもcascadeで削除される。その後SQL Editorで `delete from public.couple_spaces;` を実行してからDをやり直す。
