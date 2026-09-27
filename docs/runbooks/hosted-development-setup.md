@@ -55,6 +55,16 @@ Development projectのDashboardで次を設定する（ADR 0001の決定）。
 
 補足：`supabase config push` は使わない。`supabase/config.toml` にはローカル専用の値（`site_url = 127.0.0.1`、`otp_expiry = 20`）が入っているため。
 
+## まとめて行う場合（C〜G）
+
+A・Bが終わっていれば、C〜Gは次の1つのコマンドで行える。聞かれたもの（Publishable key・localadminのsecret key・2人の表示名・確認のy・2人のPIN）に答えるだけで、PIN_PEPPERは自動で作る。キーとPINは画面に表示しない。何度実行しても同じ結果になる。
+
+```bash
+bash scripts/setup/dev-setup.sh
+```
+
+個別に行う場合は以下のC〜G。
+
 ## C. 管理用secret keyの準備
 
 1. Settings → API Keys → Secret keys →「New secret key」で名前 `localadmin` のキーを作る（既存のキーは使わない。不要になったらこのキーだけ削除できる）
