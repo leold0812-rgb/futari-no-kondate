@@ -139,6 +139,17 @@ migration: `supabase/migrations/20261001090000_create_inventory.sql`。テスト
 - `inventory_consume`：互換単位のlotだけ古い順に減らし、lotの小数2桁への丸めで実際に減った量から残りを計算して、減らせなかった量を返す
 - 「そろそろ使いたい」は保存せず、購入日と材料の`storage_days`からアプリで算出（`lib/inventory/status.ts`：残りが保存目安の3割（最低1日）以下）
 
+## 確定済みschema: 週間計画（Gate 5）
+
+migration: `supabase/migrations/20261002090000_create_weekly_plans.sql`。テスト: `supabase/tests/database/weekly_plans.test.sql`、`tests/unit/recommendation-weekly.test.ts`。
+
+- `weekly_plans`（`week_start`は月曜、(space, week_start)一意、status `DRAFT`/`CONFIRMED`/`COMPLETED`、`version`）
+- `recommendation_runs`（`algorithm_version`、入力の要約、緩和理由の`notes`）と `recommendation_candidates`（順位・点数・内訳・`manual`・`decision` `PENDING`/`ACCEPTED`/`SKIPPED`）
+- `meal_sets`（1主菜＝1献立セット：主菜・副菜・汁物・人数・`PLANNED`/`COOKED`・`version`）。設計案の`weekly_main_dishes`は`meal_sets`に統合
+- `recipe_histories`（作った記録。推薦の「未調理」「最近作った」。書き込みはGate 7）
+- 利用者は読むだけ。書き込みは関数（`SECURITY DEFINER`、関数内で自分のspaceかを確認）：`ensure_weekly_plan`、`save_recommendation_run`（DRAFTのみ、版を進める）、`decide_candidate`（計画行をロックし、DRAFT・最新runの候補だけ。版を進める）、`add_manual_candidate`（もう作らない料理も手動なら可）、`confirm_weekly_plan(plan, version)`（最新runで採用済みの候補がちょうど5品のときだけ、判断順に献立セットを作る。楽観ロック、確定済みへの再送は成功扱い）
+- Realtime：`weekly_plans`・`recommendation_candidates`・`meal_sets`（Gate 4で`inventory_items`も）
+
 ## 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。

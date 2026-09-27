@@ -1,0 +1,163 @@
+.deck {
+  display: grid;
+  gap: 14px;
+}
+
+.progress {
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.progress strong {
+  color: var(--color-primary-strong);
+  font-size: 1.25rem;
+}
+
+.card {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  box-shadow: 0 4px 16px rgb(47 49 46 / 10%);
+  touch-action: pan-y;
+  user-select: none;
+  transition: transform 160ms ease;
+  cursor: grab;
+}
+
+.card:focus-visible {
+  outline: 3px solid var(--color-primary-strong);
+  outline-offset: 3px;
+}
+
+.card[data-direction="accept"] {
+  border-color: var(--color-primary-strong);
+}
+
+.card[data-direction="skip"] {
+  border-color: var(--color-caution);
+}
+
+.cardImage {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  pointer-events: none;
+}
+
+.cardBody {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px 16px;
+}
+
+.cardName {
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.cardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.reasons {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-primary-strong);
+  font-size: 0.875rem;
+}
+
+.caution {
+  color: var(--color-caution-strong);
+}
+
+.note {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.stamp {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  background: rgb(255 253 248 / 90%);
+  font-weight: 700;
+}
+
+.stamp:empty {
+  display: none;
+}
+
+.buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.skip {
+  color: var(--color-caution-strong);
+}
+
+.subActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 12px;
+}
+
+.actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+
+.thumb {
+  width: 72px;
+  height: 56px;
+  border-radius: var(--radius-input);
+}
+
+.rowName {
+  font-weight: 700;
+}
+
+.rowMeta {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+    transform: none !important;
+  }
+}
