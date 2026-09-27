@@ -11,7 +11,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { checkAdminKey, checkSupabaseTarget } from "../lib/supabase-target.mts";
+import { checkAdminKey, checkKnownProject, checkSupabaseTarget } from "../lib/supabase-target.mts";
 import { readFoodRows } from "./food-csv.mts";
 
 function fail(message: string): never {
@@ -23,6 +23,7 @@ async function main() {
   const { values } = parseArgs({
     options: {
       "project-ref": { type: "string" },
+      "production-ref": { type: "string" },
       file: { type: "string" },
       version: { type: "string" },
       apply: { type: "boolean", default: false },
@@ -31,7 +32,9 @@ async function main() {
   });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  const problem = checkSupabaseTarget(url, values["project-ref"]) ?? checkAdminKey(key);
+  const problem = checkSupabaseTarget(url, values["project-ref"]) ??
+    checkKnownProject(values["project-ref"], values["production-ref"]) ??
+    checkAdminKey(key);
   if (problem) fail(problem);
   if (!values.file) fail("--file にCSVファイルを指定してください。");
   const version = values.version?.trim();

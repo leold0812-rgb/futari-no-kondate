@@ -36,6 +36,7 @@ alter table public.ingredients
   add column grams_per_ml numeric(6, 3) constraint ingredients_grams_per_ml_positive check (grams_per_ml is null or grams_per_ml > 0);
 
 -- ご飯（めし・精白米）100g当たり。食品番号は取り込んだ版に合わせて指定できる（既定は八訂の「こめ［水稲めし］精白米 うるち米」）
+-- 複数の版を取り込んだ場合は、最後に取り込んだ版を使う（版名の文字列順には頼らない）
 create function public.rice_nutrition_per_100g(p_food_number text default '01088')
 returns table (energy_kcal numeric, protein_g numeric, fat_g numeric, carbs_g numeric, source_version text)
 language sql
@@ -46,7 +47,7 @@ as $$
   select f.energy_kcal, f.protein_g, f.fat_g, f.carbs_g, f.source_version
   from public.food_composition_items as f
   where f.food_number = p_food_number
-  order by f.source_version desc
+  order by f.created_at desc, f.source_version desc
   limit 1
 $$;
 
@@ -82,7 +83,7 @@ as $$
     select f.energy_kcal, f.protein_g, f.fat_g, f.carbs_g
     from public.food_composition_items as f
     where f.food_number = '01088'
-    order by f.source_version desc
+    order by f.created_at desc, f.source_version desc
     limit 1
   )
   select coalesce(jsonb_object_agg(

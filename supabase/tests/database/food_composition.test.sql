@@ -1,7 +1,7 @@
 -- Gate 2b: 食品成分表（参照データ）と材料の対応付け。数値は架空のテスト用
 begin;
 
-select plan(10);
+select plan(15);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -71,6 +71,41 @@ select is(
      -> '00000000-0000-4000-8000-00000000000a' ->> 'energyKcal'),
   '450',
   '作ったときの栄養の写しに、ご飯（150g × 100kcal/100g）を加える'
+);
+select is(
+  (select (private.meal_nutrition('10000000-0000-4000-8000-000000000001', array['20000000-0000-4000-8000-000000000001'::uuid])
+     -> '00000000-0000-4000-8000-00000000000a') - 'energyKcal' - 'riceGrams'),
+  '{"fatG": 10.8, "carbsG": 60.0, "missing": [], "complete": true, "proteinG": 11.5}'::jsonb,
+  'ご飯のPFCも加え、すべてそろえば完全扱い'
+);
+
+-- 新しい版を取り込んだら、その版のご飯を使う（版名の文字列順ではなく取り込んだ順）
+insert into public.food_composition_items (source_version, food_number, name, energy_kcal, protein_g, fat_g, carbs_g, created_at) values
+  ('a-newer', '01088', 'テスト用めし（新しい版）', 200, 2, 1, 40, now() + interval '1 minute');
+select is((select source_version from public.rice_nutrition_per_100g()), 'a-newer', '最後に取り込んだ版のご飯を使う');
+select is(
+  (select private.meal_nutrition('10000000-0000-4000-8000-000000000001', array['20000000-0000-4000-8000-000000000001'::uuid])
+     -> '00000000-0000-4000-8000-00000000000a' ->> 'energyKcal'),
+  '600',
+  '作ったの写しも最後に取り込んだ版のご飯で計算する'
+);
+
+-- 成分表にご飯が無ければ「ご飯」を未登録として残す
+delete from public.food_composition_items where food_number = '01088';
+select is(
+  (select private.meal_nutrition('10000000-0000-4000-8000-000000000001', array['20000000-0000-4000-8000-000000000001'::uuid])
+     -> '00000000-0000-4000-8000-00000000000a' -> 'missing'),
+  '["ご飯"]'::jsonb,
+  '成分表にご飯が無ければ、ご飯を未登録として残す'
+);
+
+-- ご飯0gならご飯の値は不要で、料理だけで完全扱い
+update public.rice_portions set grams = 0 where user_id = '00000000-0000-4000-8000-00000000000a';
+select is(
+  (select private.meal_nutrition('10000000-0000-4000-8000-000000000001', array['20000000-0000-4000-8000-000000000001'::uuid])
+     -> '00000000-0000-4000-8000-00000000000a' ->> 'complete'),
+  'true',
+  'ご飯0gなら成分表にご飯が無くても完全扱い'
 );
 
 select * from finish();

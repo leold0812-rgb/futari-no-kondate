@@ -169,9 +169,12 @@ export default async function RecipeDetailPage({ params, searchParams }: PagePro
             </dl>
             <p className={styles.muted}>
               {recipe.nutrition.source === "CALCULATED"
-                ? `${calculation?.sourceVersion ?? "食品成分表"}から計算した値（ご飯は含みません）`
+                ? `${calculation?.sourceVersions.length ? calculation.sourceVersions.join("・") : "食品成分表"}から計算した値（ご飯は含みません）`
                 : "手入力の値（ご飯は含みません）"}
             </p>
+            {recipe.nutrition.source === "CALCULATED" && calculation && calculation.uncounted.length > 0 ? (
+              <p className={styles.muted}>量が決まっていない材料（{calculation.uncounted.join("、")}）は計算に含みません。</p>
+            ) : null}
           </>
         ) : (
           <>

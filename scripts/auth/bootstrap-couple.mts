@@ -12,7 +12,7 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { parseArgs } from "node:util";
-import { checkAdminKey, checkSupabaseTarget } from "../lib/supabase-target.mts";
+import { checkAdminKey, checkKnownProject, checkSupabaseTarget } from "../lib/supabase-target.mts";
 import type { MemberConfig } from "./bootstrap-plan.mts";
 import { runBootstrap } from "./bootstrap-runner.mts";
 
@@ -25,6 +25,7 @@ async function main() {
   const { values } = parseArgs({
     options: {
       "project-ref": { type: "string" },
+      "production-ref": { type: "string" },
       apply: { type: "boolean", default: false },
     },
     strict: true,
@@ -32,7 +33,8 @@ async function main() {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
-  const targetError = checkSupabaseTarget(url, values["project-ref"]);
+  const targetError =
+    checkSupabaseTarget(url, values["project-ref"]) ?? checkKnownProject(values["project-ref"], values["production-ref"]);
   if (targetError) fail(targetError);
   const keyError = checkAdminKey(key);
   if (keyError) fail(keyError);

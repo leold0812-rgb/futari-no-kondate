@@ -5,6 +5,19 @@
 
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
+/** hosted Development（docs/development-environments.md）。これ以外のhosted projectは明示したときだけ操作する */
+export const DEVELOPMENT_PROJECT_REF = "jqkslfjdppwliugchwbm";
+
+/**
+ * 操作してよいprojectかを確かめる。ローカルとhosted Developmentは許可し、
+ * それ以外（Productionなど）は `--production-ref` に同じrefをもう一度書いたときだけ許可する（取り違え防止）。
+ */
+export function checkKnownProject(projectRef: string | undefined, productionRef: string | undefined): string | null {
+  if (!projectRef || projectRef === "local" || projectRef === DEVELOPMENT_PROJECT_REF) return null;
+  if (productionRef && productionRef === projectRef) return null;
+  return `hosted Development（${DEVELOPMENT_PROJECT_REF}）とローカル以外のprojectです。本番などを操作するときだけ --production-ref に同じrefを指定してください。`;
+}
+
 /**
  * `--project-ref` の指定とURLが一致するかを確かめる。
  * hostedは `https://<ref>.supabase.co` のみ許可し、ローカルSupabaseは `--project-ref local` を必須にする。

@@ -46,7 +46,7 @@ type LineRow = {
 };
 
 /** レシピの材料と対応付けから1人前の栄養を計算する（保存はしない） */
-export async function calculateForRecipe(supabase: SupabaseClient, recipeId: string): Promise<(RecipeNutritionResult & { sourceVersion: string | null }) | null> {
+export async function calculateForRecipe(supabase: SupabaseClient, recipeId: string): Promise<(RecipeNutritionResult & { sourceVersions: string[] }) | null> {
   const [{ data: recipe }, { data: lines, error }] = await Promise.all([
     supabase.from("recipes").select("servings").eq("id", recipeId).maybeSingle(),
     supabase
@@ -56,11 +56,11 @@ export async function calculateForRecipe(supabase: SupabaseClient, recipeId: str
   ]);
   if (!recipe || error) return null;
   const one = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
-  let sourceVersion: string | null = null;
+  const sourceVersions = new Set<string>();
   const input: NutritionLine[] = ((lines ?? []) as unknown as LineRow[]).map((line) => {
     const ingredient = one(line.ingredients);
     const food = ingredient ? one(ingredient.food_composition_items) : null;
-    if (food) sourceVersion = food.source_version;
+    if (food) sourceVersions.add(food.source_version);
     return {
       name: line.raw_name,
       quantity: line.quantity === null ? null : Number(line.quantity),
@@ -70,7 +70,7 @@ export async function calculateForRecipe(supabase: SupabaseClient, recipeId: str
       gramsPerMl: ingredient?.grams_per_ml === null || ingredient?.grams_per_ml === undefined ? null : Number(ingredient.grams_per_ml),
     };
   });
-  return { ...calculateRecipeNutrition(input, Number(recipe.servings)), sourceVersion };
+  return { ...calculateRecipeNutrition(input, Number(recipe.servings)), sourceVersions: [...sourceVersions].sort() };
 }
 
 /**
@@ -111,7 +111,9 @@ export async function setIngredientNutrition(
   if (patch.foodItemId !== undefined) update.food_item_id = patch.foodItemId;
   if (patch.gramsPerUnit !== undefined) update.grams_per_unit = patch.gramsPerUnit;
   if (patch.gramsPerMl !== undefined) update.grams_per_ml = patch.gramsPerMl;
-  const { error } = await supabase.from("ingredients").update(update).eq("id", ingredientId);
+  // RLSで対象外（別spaceなど）の材料は0行更新になり、エラーにならないため、更新できた行を確かめる
+  const { data, error } = await supabase.from("ingredients").update(update).eq("id", ingredientId).select("id");
   if (error) throw new Error(`材料の栄養設定を保存できませんでした: ${error.message}`);
+  if (!data || data.length !== 1) throw new Error("材料が見つかりませんでした。");
   await refreshRecipesUsingIngredient(supabase, ingredientId);
 }
