@@ -6,8 +6,15 @@
 const LOCAL_HOSTS = new Set(["127.0.0.1", "localhost"]);
 
 /**
+ * 管理スクリプトが操作してよいhosted project（Development: futari-no-kondate-dev）。
+ * project refは公開URLの一部で秘密値ではない。Productionへの操作は本番導入チェックリストで別に扱い、
+ * これらのスクリプトからは実行できないようにする。
+ */
+export const DEVELOPMENT_PROJECT_REF = "jqkslfjdppwliugchwbm";
+
+/**
  * `--project-ref` の指定とURLが一致するかを確かめる。
- * hostedは `https://<ref>.supabase.co` のみ許可し、ローカルSupabaseは `--project-ref local` を必須にする。
+ * hostedは `https://<Development ref>.supabase.co` のみ許可し、ローカルSupabaseは `--project-ref local` を必須にする。
  * 問題があれば日本語の理由を返し、問題がなければnullを返す。
  */
 export function checkSupabaseTarget(supabaseUrl: string, projectRef: string | undefined): string | null {
@@ -36,6 +43,9 @@ export function checkSupabaseTarget(supabaseUrl: string, projectRef: string | un
   }
   if (match[1] !== projectRef) {
     return "URLのproject refと --project-ref が一致しません。操作対象のprojectを確認してください。";
+  }
+  if (projectRef !== DEVELOPMENT_PROJECT_REF) {
+    return "このスクリプトはDevelopment project（futari-no-kondate-dev）専用です。Productionなど他のprojectは操作できません。";
   }
   return null;
 }

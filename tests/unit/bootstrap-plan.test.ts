@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { planBootstrap, validateMembers, type BootstrapState, type MemberConfig } from "@/scripts/auth/bootstrap-plan.mts";
-import { checkAdminKey, checkSupabaseTarget } from "@/scripts/lib/supabase-target.mts";
+import { checkAdminKey, checkSupabaseTarget, DEVELOPMENT_PROJECT_REF } from "@/scripts/lib/supabase-target.mts";
 
 const members: MemberConfig[] = [
   { email: "member-1@example.invalid", displayName: "あお" },
@@ -147,10 +147,15 @@ describe("planBootstrap", () => {
 });
 
 describe("checkSupabaseTarget", () => {
-  const ref = "abcdefghijklmnopqrst";
+  const ref = DEVELOPMENT_PROJECT_REF;
+  const otherRef = "abcdefghijklmnopqrst";
 
-  it("hosted URLとproject refが一致すれば許可する", () => {
+  it("Development projectのURLとrefが一致すれば許可する", () => {
     expect(checkSupabaseTarget(`https://${ref}.supabase.co`, ref)).toBeNull();
+  });
+
+  it("URLとrefが一致していてもDevelopment以外（Productionなど）は拒否する", () => {
+    expect(checkSupabaseTarget(`https://${otherRef}.supabase.co`, otherRef)).toMatch("Development project");
   });
 
   it.each([
