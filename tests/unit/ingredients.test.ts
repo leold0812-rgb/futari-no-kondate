@@ -25,6 +25,8 @@ describe("カテゴリの推定", () => {
     ["しょうゆ", "SEASONING"],
     ["サラダ油", "SEASONING"],
     ["卵", "EGG_DAIRY"],
+    ["牛乳", "EGG_DAIRY"],
+    ["牛こま切れ肉", "MEAT"],
     ["絹豆腐", "SOY"],
     ["冷凍うどん", "FROZEN"],
     ["ツナ缶", "DRY_CANNED"],
