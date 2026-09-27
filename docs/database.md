@@ -106,6 +106,19 @@ migration: `supabase/migrations/20260928090000_create_pin_auth.sql`。テスト:
 - 制限：アカウントは最後の成功以降の連続5回で15分→30分→60分（上限）。送信元（IPのHMAC）は1時間の固定windowで20回（成功も数える）で1時間。
 - PIN照合はアプリサーバー（`lib/auth/pin.ts`、scrypt N=2^15・r=8・p=1、pepperは環境変数`PIN_PEPPER`）。
 
+## 確定済みschema: レシピ（Gate 2）
+
+migration: `supabase/migrations/20260929090000_create_recipes.sql`。テスト: `supabase/tests/database/recipes_rls.test.sql`、`tests/integration/recipes.test.ts`。
+
+- `ingredients`（spaceごとの材料マスタ。名前は`lower(btrim(name))`でspace内一意、category 10区分、`default_unit`、`storage_days`（保存目安、nullは目安なし）、`aliases`）
+- `recipes`（status `URL_ONLY`/`DRAFT`/`READY`、`dish_type` 主菜/副菜/汁物、`main_category`（推薦の偏り補正用の大分類）、`cuisine`、`servings` 1〜8、`instructions` jsonb配列、`high_cost`/`special_seasoning`/`one_dish`、`tags`、1人前の栄養と`nutrition_source`、`image_path`、`deleted_at`で論理削除）
+- `recipe_ingredients`（`raw_name`、`quantity`（null=少々など）、`unit`、`note`、`is_main`、`sort_order`、`ingredient_id`は材料マスタへ（削除時null））
+- `recipe_ratings`（`MAKE_AGAIN`/`NORMAL`/`NEVER_AGAIN`）、`recipe_favorites`：主キー(recipe_id, user_id)
+- 子テーブルは (親id, couple_space_id) の複合外部キーで、別spaceの親を参照できない
+- 権限：authenticatedだけ。recipesはDELETE権限なし（論理削除）。評価・お気に入りは同じspaceで読め、本人の行だけ変更可
+- `public.save_recipe(recipe_id, recipe jsonb, ingredients jsonb)`：`SECURITY INVOKER`（RLSが効く）。レシピ本体と材料行を1 transactionで保存し、材料名を材料マスタへ対応付け（無ければ作成）
+- Storage：private bucket `recipe-images`（5MB、JPEG/PNG/WebP）。パス先頭が自分のspace IDのものだけ読み書き可
+
 ### 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。

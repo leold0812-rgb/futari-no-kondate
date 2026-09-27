@@ -1,0 +1,73 @@
+.wrap {
+  display: grid;
+  gap: 16px;
+  min-height: calc(100dvh - var(--bottom-nav-height) - var(--safe-bottom) - 120px);
+  grid-template-rows: auto auto auto 1fr auto auto;
+}
+
+.recipeName {
+  color: var(--color-text-muted);
+  font-weight: 700;
+}
+
+.progress {
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.progressBar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--color-border);
+}
+
+.progressBar span {
+  display: block;
+  height: 100%;
+  background: var(--color-primary-strong);
+  transition: width 200ms ease;
+}
+
+.step {
+  align-self: start;
+  padding: 20px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  font-size: 1.375rem;
+  line-height: 1.7;
+}
+
+.ingredients summary {
+  min-height: var(--tap-min);
+  padding: 10px 0;
+  color: var(--color-primary-strong);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ingredients ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ingredients li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--color-border);
+}
+
+.nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.empty {
+  display: grid;
+  gap: 12px;
+}

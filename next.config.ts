@@ -4,6 +4,12 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // `next dev` がルートの AGENTS.md / CLAUDE.md を書き換えないようにする（開発ルールはプロジェクト側で管理）
   agentRules: false,
+  experimental: {
+    serverActions: {
+      // レシピ写真の送信用（ブラウザで長辺1600pxのJPEGへ縮小してから送る。サーバー側の上限は5MB）
+      bodySizeLimit: "6mb",
+    },
+  },
 };
 
 export default nextConfig;

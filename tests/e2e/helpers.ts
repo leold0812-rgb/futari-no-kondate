@@ -10,8 +10,13 @@ export async function snap(page: Page, name: string) {
   await page.screenshot({ path: `test-results/screens/${name}.png`, fullPage: true });
 }
 
-/** ログインする。`stay: true` なら現在のログイン画面（next付きなど）のまま入力する */
+/**
+ * ログインする。`stay: true` なら現在のログイン画面（next付きなど）のまま入力する。
+ * 送信元単位の試行制限（1時間20回）に全テストで引っかからないよう、テストごとに別の送信元IPを名乗る
+ * （本番ではVercelが x-real-ip を付け直すため、利用者がこの値を偽れない）。
+ */
 export async function login(page: Page, member: string, pin: string, options: { stay?: boolean } = {}) {
+  await page.setExtraHTTPHeaders({ "x-real-ip": `198.18.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250) + 1}` });
   if (!options.stay) await page.goto("/login");
   await page.getByText(member, { exact: true }).click();
   await page.getByLabel(`${member}さんのPIN`).fill(pin);

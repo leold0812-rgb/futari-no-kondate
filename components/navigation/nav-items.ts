@@ -15,7 +15,12 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/records", label: "記録", icon: "records" },
 ];
 
+// 設定画面は「記録」タブの右上から開くため、記録タブを現在地として示す
+const SECTION_ALIASES: Record<string, string> = { "/settings": "/records" };
+
 export function isActivePath(pathname: string, href: string): boolean {
+  const section = Object.entries(SECTION_ALIASES).find(([prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  if (section) return section[1] === href;
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
 }

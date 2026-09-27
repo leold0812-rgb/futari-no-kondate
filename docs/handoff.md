@@ -38,6 +38,15 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
+### Gate 2: レシピ（PR作成時点）
+
+- migration `20260929090000_create_recipes.sql`（材料マスタ・レシピ・材料行・評価・お気に入り・`save_recipe` RPC・画像bucketとStorage policy）。詳細は`docs/database.md`
+- `lib/units`（単位の正規化・互換単位だけの換算・表示・人数換算・分量文字列の解析）、`lib/ingredients`（材料名の正規化・カテゴリ推定・保存目安の初期値）、`lib/recipes/constants.ts`、`lib/validation/recipe.ts`（zod）、`lib/services/recipes.ts` / `recipe-images.ts` / `members.ts`
+- 画面：`/recipes`（2列・検索・絞り込み・並べ替え、URLクエリで状態保持）、`/recipes/new`・`/recipes/[id]/edit`（行ごとの材料＋まとめて貼り付け、手順は1行1つ、写真は端末で縮小）、`/recipes/[id]`（1〜4人分換算、評価3段階・お気に入り・相手の評価、栄養、削除確認）、`/recipes/[id]/cook`（1手順ずつ）
+- Server Actionの送信上限を6MBへ（写真）。設定画面では記録タブを現在地表示
+- テスト：単体（units / ingredients / recipe-validation）、pgTAP `recipes_rls.test.sql`（31件）、統合`recipes.test.ts`、E2E`recipes.spec.ts`。CIのauthジョブでStorageも起動
+- ローカル検証：scratchpadのHomebrew PostgreSQL＋Supabase最小再現＋最小pgTAP互換関数で、全DBテストを手元で実行してからCIへ出している
+
 ### Gate 1.4〜1.7: PIN認証・ログイン画面・proxy・E2E基盤
 
 - migration `20260928090000_create_pin_auth.sql`：`private.pin_credentials` / `private.login_throttles`（テーブル権限なし）と、service_role専用RPC `pin_login_begin` / `pin_login_succeeded` / `pin_set`。詳細は`docs/database.md`
