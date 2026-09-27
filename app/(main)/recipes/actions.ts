@@ -7,6 +7,7 @@ import { requireMember } from "@/lib/auth/session";
 import { fetchRemoteImage } from "@/lib/import/remote-image";
 import { RATINGS, type Rating } from "@/lib/recipes/constants";
 import { removeRecipeImage, uploadRecipeImage, validateImageFile, verifyImageContent } from "@/lib/services/recipe-images";
+import { refreshCalculatedNutrition } from "@/lib/services/nutrition";
 import { saveRecipe, setFavorite, setRating, softDeleteRecipe } from "@/lib/services/recipes";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { describeIssues, recipeInputSchema, type RecipeInput } from "@/lib/validation/recipe";
@@ -69,6 +70,7 @@ export async function createRecipeAction(_previous: RecipeFormState, formData: F
       notice = "image-failed";
     }
   }
+  await refreshCalculatedNutrition(supabase, recipeId).catch(() => undefined);
   revalidatePath("/recipes");
   redirect(`/recipes/${recipeId}?notice=${notice}`);
 }
@@ -114,6 +116,7 @@ export async function updateRecipeAction(
     return { errors: ["レシピを保存できませんでした。通信状態を確認して、もう一度お試しください。"] };
   }
   if (newPath !== undefined && oldPath && oldPath !== newPath) await removeRecipeImage(supabase, oldPath);
+  await refreshCalculatedNutrition(supabase, recipeId).catch(() => undefined);
 
   revalidatePath("/recipes");
   revalidatePath(`/recipes/${recipeId}`);

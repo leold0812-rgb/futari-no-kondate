@@ -6,6 +6,7 @@ import { requireMember } from "@/lib/auth/session";
 import { tokyoDate } from "@/lib/dates";
 import { INGREDIENT_CATEGORIES, type IngredientCategory } from "@/lib/ingredients";
 import { addInventory, setLotQuantity, updateIngredient } from "@/lib/services/inventory";
+import { setIngredientNutrition } from "@/lib/services/nutrition";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parseAmount } from "@/lib/units";
 
@@ -88,4 +89,42 @@ export async function updateIngredientAction(ingredientId: string, formData: For
   revalidatePath("/inventory");
   revalidatePath("/inventory/ingredients");
   redirect("/inventory/ingredients?notice=saved");
+}
+
+/** 材料に食品成分表の食品を対応付ける（nullで外す） */
+export async function setIngredientFoodAction(ingredientId: string, foodItemId: string | null): Promise<void> {
+  await requireMember();
+  const target = `/inventory/ingredients/${ingredientId}`;
+  if (!UUID_PATTERN.test(ingredientId) || (foodItemId !== null && !UUID_PATTERN.test(foodItemId))) redirect(`${target}?error=save`);
+  try {
+    await setIngredientNutrition(await createSupabaseServerClient(), ingredientId, { foodItemId });
+  } catch {
+    redirect(`${target}?error=save`);
+  }
+  revalidatePath("/recipes");
+  redirect(`${target}?notice=saved`);
+}
+
+/** 重さへの換算（1個当たりg・1ml当たりg）。空欄は未設定 */
+export async function setIngredientWeightsAction(ingredientId: string, formData: FormData): Promise<void> {
+  await requireMember();
+  const target = `/inventory/ingredients/${ingredientId}`;
+  const read = (name: string) => {
+    const text = String(formData.get(name) ?? "").normalize("NFKC").trim();
+    if (text === "") return null;
+    const n = Number(text);
+    return Number.isFinite(n) && n > 0 && n < 100000 ? n : Number.NaN;
+  };
+  const gramsPerUnit = read("gramsPerUnit");
+  const gramsPerMl = read("gramsPerMl");
+  if (!UUID_PATTERN.test(ingredientId) || Number.isNaN(gramsPerUnit) || Number.isNaN(gramsPerMl) || (gramsPerMl !== null && gramsPerMl > 10)) {
+    redirect(`${target}?error=weights`);
+  }
+  try {
+    await setIngredientNutrition(await createSupabaseServerClient(), ingredientId, { gramsPerUnit, gramsPerMl });
+  } catch {
+    redirect(`${target}?error=save`);
+  }
+  revalidatePath("/recipes");
+  redirect(`${target}?notice=saved`);
 }

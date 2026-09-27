@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import styles from "@/components/inventory/inventory.module.css";
 import { Alert } from "@/components/ui/alert";
 import { buttonClassName, LinkButton } from "@/components/ui/button";
@@ -43,7 +44,12 @@ export default async function IngredientSettingsPage({ searchParams }: PageProps
         <ul className={styles.list}>
           {ingredients.map((ingredient) => (
             <li key={ingredient.id} className={styles.ingredientRow}>
-              <p className={styles.entryName}>{ingredient.name}</p>
+              <p className={styles.entryName}>
+                {ingredient.name}{" "}
+                <Link href={`/inventory/ingredients/${ingredient.id}`} className={styles.meta}>
+                  栄養の設定
+                </Link>
+              </p>
               <form action={updateIngredientAction.bind(null, ingredient.id)} className={styles.ingredientForm}>
                 <label className={styles.field}>
                   <span>カテゴリ</span>

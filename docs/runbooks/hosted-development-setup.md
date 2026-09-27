@@ -157,7 +157,30 @@ JSON-LD（構造化データ）を持つレシピサイトはキーなしでも�
 - アプリ側でも1 spaceあたり1日20回までに制限している。失敗しても上位モデルへ自動で再試行しない。
 - 送るのは公開ページのタイトル・説明・本文の先頭8000文字だけで、利用者の情報は送らない。
 
-## I. 以降のGateで追加される手順
+## I. 食品成分表の取り込み（Gate 2b、任意）
+
+レシピの1人前の栄養とご飯の栄養を計算するための参照データ。取り込まなくても、レシピに手入力した栄養は使える。
+
+1. 文部科学省「日本食品標準成分表（八訂）増補2023年」の本表（Excel）を公式サイトからダウンロードする（利用条件に従い、アプリでは出典として版名を表示する）
+2. 表計算ソフトで次の6列だけを残し、1行目の見出しを英字に変えて、UTF-8のCSVで保存する（例：`food-composition.csv`、Git管理外の場所に置く）
+   - 食品番号 → `food_number` / 食品名 → `name` / エネルギー（kcal） → `energy_kcal` / たんぱく質 → `protein_g` / 脂質 → `fat_g` / 炭水化物 → `carbs_g`
+   - 「Tr」（微量）は0、「(0.1)」のような推定値はその値として読み込む。「-」や空欄の食品は取り込まない
+3. 確認（取り込まない）
+
+```bash
+node --env-file=.env.bootstrap.local scripts/nutrition/import-food-composition.mts --project-ref jqkslfjdppwliugchwbm --file food-composition.csv --version "日本食品標準成分表（八訂）増補2023年"
+```
+
+4. 取り込む（同じ版・食品番号は上書きされるので、やり直しても重複しない）
+
+```bash
+node --env-file=.env.bootstrap.local scripts/nutrition/import-food-composition.mts --project-ref jqkslfjdppwliugchwbm --file food-composition.csv --version "日本食品標準成分表（八訂）増補2023年" --apply
+```
+
+- ご飯の栄養は食品番号 `01088`（こめ［水稲めし］精白米 うるち米）を使う。取り込んだ版で番号が違う場合は Claude に伝える。
+- 取り込んだ後、アプリの「在庫 → 材料の設定 → 栄養の設定」で材料ごとに食品を選ぶと、その材料を使うレシピの栄養が自動で計算される。
+
+## J. 以降のGateで追加される手順
 
 - Vercel Blob store（バックアップ、Gate 8）、`CRON_SECRET` → このファイルへ追記する
 
