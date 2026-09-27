@@ -129,6 +129,17 @@ export async function findNonEmptyTables(client: SupabaseClient): Promise<string
   return nonEmpty;
 }
 
+/**
+ * 対象テーブルを子から順にすべて空にする。
+ * 呼ぶのは「始める前に空だったことを確かめた復元先」の後始末と、ローカルの復元テストだけ。
+ */
+export async function clearTables(client: SupabaseClient): Promise<void> {
+  for (const table of [...BACKUP_TABLES].reverse()) {
+    const { error } = await client.from(table.name).delete().not(table.key[0], "is", null);
+    if (error) throw new Error(`${table.name} を空にできませんでした: ${error.message}`);
+  }
+}
+
 /** 空のDBへ親テーブルから順に入れる（service roleのclientで呼ぶ） */
 export async function restoreTables(client: SupabaseClient, backup: BackupFile, onProgress?: (table: string, rows: number) => void): Promise<void> {
   for (const table of BACKUP_TABLES) {
@@ -147,10 +158,17 @@ export function backupPathname(now: Date): string {
   return `${BACKUP_PREFIX}${stamp.slice(0, 10)}/${stamp}.json.gz`;
 }
 
+/** backupPathname() が作る名前だけ（同じstoreのほかのファイルは消さない） */
+const BACKUP_PATHNAME = /^backups\/\d{4}-\d{2}-\d{2}\/\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z\.json\.gz$/;
+
+export function isBackupPathname(pathname: string): boolean {
+  return BACKUP_PATHNAME.test(pathname);
+}
+
 /** 保持期間（30日）を過ぎたバックアップ。最新の1件は期間を過ぎていても残す */
 export function expiredBackups(blobs: { pathname: string; uploadedAt: Date }[], now: Date, days: number = RETENTION_DAYS): string[] {
   const limit = now.getTime() - days * 86_400_000;
-  const ours = blobs.filter((b) => b.pathname.startsWith(BACKUP_PREFIX));
+  const ours = blobs.filter((b) => isBackupPathname(b.pathname));
   const newest = ours.reduce<{ pathname: string; uploadedAt: Date } | null>(
     (best, b) => (!best || b.uploadedAt.getTime() > best.uploadedAt.getTime() ? b : best),
     null,

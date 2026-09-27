@@ -7,22 +7,15 @@
  *
  *   node scripts/backup/roundtrip-check.mts --project-ref local
  */
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 import { isDeepStrictEqual } from "node:util";
 import { parseArgs } from "node:util";
-import { BACKUP_TABLES, type BackupFile, countRows, exportTables, findNonEmptyTables, restoreTables } from "../../lib/backup/core.mts";
+import { BACKUP_TABLES, type BackupFile, clearTables, countRows, exportTables, findNonEmptyTables, restoreTables } from "../../lib/backup/core.mts";
 import { checkAdminKey, checkSupabaseTarget } from "../lib/supabase-target.mts";
 
 function fail(message: string): never {
   console.error(`エラー: ${message}`);
   process.exit(1);
-}
-
-async function wipe(client: SupabaseClient) {
-  for (const table of [...BACKUP_TABLES].reverse()) {
-    const { error } = await client.from(table.name).delete().not(table.key[0], "is", null);
-    if (error) throw new Error(`${table.name} を空にできませんでした: ${error.message}`);
-  }
 }
 
 /** 比べられる形にする（seqは復元で採番し直すため、値ではなく計画ごとの順で比べる） */
@@ -56,7 +49,7 @@ async function main() {
   const empty = ["profiles", "recipes", "meal_histories"].filter((t) => counts[t] === 0);
   if (empty.length > 0) fail(`復元テストの前提のデータがありません（${empty.join(", ")}）。E2Eの後に実行してください。`);
 
-  await wipe(admin);
+  await clearTables(admin);
   const left = await findNonEmptyTables(admin);
   if (left.length > 0) fail(`空にできなかったテーブルがあります: ${left.join(", ")}`);
 

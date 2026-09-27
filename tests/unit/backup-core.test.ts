@@ -6,6 +6,7 @@ import {
   type BackupFile,
   backupPathname,
   expiredBackups,
+  isBackupPathname,
   remapUserIds,
   rowsForRestore,
   validateBackup,
@@ -98,21 +99,29 @@ describe("backupPathname / expiredBackups", () => {
     expect(backupPathname(now)).toBe("backups/2026-10-31/2026-10-31T18-00-00-000Z.json.gz");
   });
 
-  it("30日を過ぎたものだけを消し、ほかの場所のファイルには触れない", () => {
-    const blobs = [
-      { pathname: "backups/old.json.gz", uploadedAt: new Date("2026-09-30T17:00:00Z") },
-      { pathname: "backups/edge.json.gz", uploadedAt: new Date("2026-10-01T18:00:00Z") },
-      { pathname: "backups/new.json.gz", uploadedAt: new Date("2026-10-31T18:00:00Z") },
+  const blob = (iso: string) => ({ pathname: backupPathname(new Date(iso)), uploadedAt: new Date(iso) });
+
+  it("自分で作った名前だけをバックアップとして扱う", () => {
+    expect(isBackupPathname(backupPathname(now))).toBe(true);
+    expect(isBackupPathname("backups/notes.txt")).toBe(false);
+    expect(isBackupPathname("backups/2026-10-01/manual.json.gz")).toBe(false);
+    expect(isBackupPathname("other/2026-10-01/2026-10-01T18-00-00-000Z.json.gz")).toBe(false);
+  });
+
+  it("30日を過ぎたものだけを消し、ほかの名前のファイルには触れない", () => {
+    const old = blob("2026-09-30T17:00:00Z");
+    const edge = blob("2026-10-01T18:00:00Z");
+    const latest = blob("2026-10-31T18:00:00Z");
+    const others = [
+      { pathname: "backups/manual-copy.json.gz", uploadedAt: new Date("2026-01-01T00:00:00Z") },
       { pathname: "other/old.json.gz", uploadedAt: new Date("2026-01-01T00:00:00Z") },
     ];
-    expect(expiredBackups(blobs, now)).toEqual(["backups/old.json.gz"]);
+    expect(expiredBackups([old, edge, latest, ...others], now)).toEqual([old.pathname]);
   });
 
   it("すべて期限切れでも最新の1件は残す（Cronが止まっていた場合）", () => {
-    const blobs = [
-      { pathname: "backups/a.json.gz", uploadedAt: new Date("2026-08-01T00:00:00Z") },
-      { pathname: "backups/b.json.gz", uploadedAt: new Date("2026-08-02T00:00:00Z") },
-    ];
-    expect(expiredBackups(blobs, now)).toEqual(["backups/a.json.gz"]);
+    const a = blob("2026-08-01T00:00:00Z");
+    const b = blob("2026-08-02T00:00:00Z");
+    expect(expiredBackups([a, b], now)).toEqual([a.pathname]);
   });
 });

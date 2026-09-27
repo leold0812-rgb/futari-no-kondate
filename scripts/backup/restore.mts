@@ -7,6 +7,7 @@
  *
  * 安全のため:
  *   - 復元先の対象テーブルがすべて空のときだけ入れる（既存データへ上書き・混在させない）
+ *   - 途中で失敗したら、入れた分を消して元の空の状態へ戻す（直してからもう一度実行できる）
  *   - 復元先に、バックアップの2人（profiles）と同じIDのAuthアカウントがあることを先に確かめる
  *   - hosted Development・ローカル以外は --production-ref に同じrefを書いたときだけ（scripts/lib/supabase-target.mts）
  * PINは復元しない。復元後に scripts/auth/set-pin.mts で2人のPINを設定し直す。
@@ -14,7 +15,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { countRows, findNonEmptyTables, remapUserIds, restoreTables } from "../../lib/backup/core.mts";
+import { clearTables, countRows, findNonEmptyTables, remapUserIds, restoreTables } from "../../lib/backup/core.mts";
 import { readBackupFile } from "./file.mts";
 import { checkAdminKey, checkKnownProject, checkSupabaseTarget } from "../lib/supabase-target.mts";
 
@@ -70,7 +71,22 @@ async function main() {
     console.log("確認のみのため復元していません。復元するには --apply を付けてください。");
     return;
   }
-  await restoreTables(admin, backup, (table, rows) => console.log(`  復元: ${table} ${rows}件`));
+  try {
+    await restoreTables(admin, backup, (table, rows) => console.log(`  復元: ${table} ${rows}件`));
+  } catch (restoreError) {
+    // 始める前に空だったことを確かめているので、対象テーブルを空に戻せば元の状態になる
+    console.error(`エラー: ${restoreError instanceof Error ? restoreError.message : "不明なエラー"}`);
+    console.error("途中まで入れたデータを消して、復元前の空の状態へ戻します…");
+    try {
+      await clearTables(admin);
+    } catch (clearError) {
+      fail(
+        `空の状態へ戻せませんでした（${clearError instanceof Error ? clearError.message : "不明なエラー"}）。` +
+          "Dashboardのテーブルエディタで対象テーブルを確認してください。",
+      );
+    }
+    fail("復元を取り消しました（復元先は空に戻っています）。原因を直してから、もう一度実行してください。");
+  }
   console.log("完了しました。2人のPINを scripts/auth/set-pin.mts で設定し直してください。");
 }
 

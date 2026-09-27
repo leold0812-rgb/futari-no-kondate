@@ -47,6 +47,7 @@ node --env-file=.env.backup.local scripts/backup/fetch.mts --latest --out ~/Desk
 ## 復元する
 
 復元は **空のSupabase project** へ行う（既存データへの上書き・混在はしない。対象テーブルにデータがあればスクリプトが止まる）。
+途中で失敗した場合、スクリプトは入れた分を消して空の状態へ戻す（原因を直してから同じコマンドをもう一度実行できる）。食品成分表もバックアップに含まれるので、復元先で先に取り込まない。
 
 1. 新しいSupabase projectを作り、`hosted-development-setup.md` の A（migration）〜 D（2人のアカウント登録）を行う
 2. 2人のAuthアカウントのIDがバックアップと違う場合は、対応表を作る（Dashboard → Authentication で新しいIDを確認。バックアップの旧IDは `profiles` の `id`）
