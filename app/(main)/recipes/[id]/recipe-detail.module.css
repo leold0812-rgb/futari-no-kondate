@@ -135,3 +135,9 @@
   font-weight: 700;
   cursor: pointer;
 }
+
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

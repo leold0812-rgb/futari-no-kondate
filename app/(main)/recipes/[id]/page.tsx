@@ -80,9 +80,20 @@ export default async function RecipeDetailPage({ params, searchParams }: PagePro
               ? "URLだけ保存されています。材料と作り方を入力すると、週の献立候補に使えます。"
               : "材料と作り方がそろうと、週の献立候補に使えます。"}
           </p>
-          <LinkButton href={`/recipes/${recipe.id}/edit`} variant="secondary" size="small">
-            材料と作り方を入力する
-          </LinkButton>
+          <div className={styles.inlineActions}>
+            <LinkButton href={`/recipes/${recipe.id}/edit`} variant="secondary" size="small">
+              材料と作り方を入力する
+            </LinkButton>
+            {recipe.status === "URL_ONLY" && recipe.sourceUrl ? (
+              <LinkButton
+                href={`/recipes/new?replace=${recipe.id}&url=${encodeURIComponent(recipe.sourceUrl)}`}
+                variant="secondary"
+                size="small"
+              >
+                もう一度取り込む
+              </LinkButton>
+            ) : null}
+          </div>
         </Alert>
       ) : null}
 

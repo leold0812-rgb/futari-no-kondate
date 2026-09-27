@@ -119,7 +119,15 @@ migration: `supabase/migrations/20260929090000_create_recipes.sql`。テスト: 
 - `public.save_recipe(recipe_id, recipe jsonb, ingredients jsonb)`：`SECURITY INVOKER`（RLSが効く）。レシピ本体と材料行を1 transactionで保存し、材料名を材料マスタへ対応付け（無ければ作成）
 - Storage：private bucket `recipe-images`（5MB、JPEG/PNG/WebP）。パス先頭が自分のspace IDのものだけ読み書き可
 
-### 後続で必要になる設計事項
+## 確定済みschema: URL取り込みの利用記録と上限（Gate 3）
+
+migration: `supabase/migrations/20260930090000_create_recipe_import_logs.sql`。テスト: `supabase/tests/database/recipe_import_logs.test.sql`。
+
+- `recipe_import_logs`（`source_host`、`method` = `JSON_LD`/`AI`/`NONE`、`outcome` = `PENDING`/`SUCCESS`/`FAILED`、`ai_reserved`、`created_by`、`created_at`、`finished_at`）。URL全体・本文・AIの入出力は保存しない
+- 利用者は読むだけ（同じspace）。書き込みは `begin_recipe_import(space, user, host, want_ai)` と `finish_recipe_import(id, method, outcome)`（`SECURITY DEFINER`、**service_role専用**）だけ。Server Actionがsessionで確かめた利用者とspaceを渡して呼ぶ（利用者が枠の返却・消費を偽れない）
+- `begin_recipe_import` はspace単位のadvisory lockで直列化し、直近1時間30回を超えたら取り込み自体を止め、日本時間の1日20回（`method = 'AI'`または予約中）を超えたらAIの枠を出さない。AIを使わなかった取り込みは完了時に枠を返す
+
+## 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。
 - `profiles`のUPDATE（表示名変更）を許す場合は、列単位のGRANTとpolicyを別migrationで追加する。

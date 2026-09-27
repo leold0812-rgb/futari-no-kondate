@@ -145,9 +145,21 @@ PreviewデプロイでログインできるようにDevelopment用の値を登�
 - ローカルで `npm run dev` する場合は、`.env.local` に同じ4変数（URL・publishable key・secret key・PIN_PEPPER）を置く。
 - 登録後、PRのPreview URLを開き、2人ともログインできることを確認する。
 
-## H. 以降のGateで追加される手順
+## H. URL取り込み用のOpenAI API key（Gate 3、任意）
 
-- OpenAI API key（URL取り込み、Gate 3）、Vercel Blob store（バックアップ、Gate 8）、`CRON_SECRET` → このファイルへ追記する
+JSON-LD（構造化データ）を持つレシピサイトはキーなしでも取り込める。Instagramやブログなど構造化データの無いページをAIで読み取る場合だけ設定する。
+
+1. OpenAIのDashboardで、このアプリ専用のproject（例：`futari-no-kondate-dev`）を作り、月の利用上限（Usage limits）を小さく設定する
+2. そのprojectのAPI keyを作る
+3. Vercel → Environment Variables に **Preview のみ・Sensitive** で `OPENAI_API_KEY` を追加する（ローカルは`.env.local`）
+4. モデルを変える場合だけ `OPENAI_IMPORT_MODEL`（秘密値ではない）を設定する。既定は `gpt-5-mini`
+
+- アプリ側でも1 spaceあたり1日20回までに制限している。失敗しても上位モデルへ自動で再試行しない。
+- 送るのは公開ページのタイトル・説明・本文の先頭8000文字だけで、利用者の情報は送らない。
+
+## I. 以降のGateで追加される手順
+
+- Vercel Blob store（バックアップ、Gate 8）、`CRON_SECRET` → このファイルへ追記する
 
 ## 後片付け・漏えい時
 
