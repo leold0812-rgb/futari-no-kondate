@@ -42,12 +42,14 @@ create table public.recommendation_runs (
   notes jsonb not null default '[]'::jsonb,
   generated_by uuid default auth.uid() references auth.users (id) on delete set null,
   generated_at timestamp with time zone not null default now(),
+  -- 作成順（同じtransaction内の複数回でも順序が決まる）。「最新の実行」はこの値で判定する
+  seq bigint generated always as identity,
   constraint recommendation_runs_plan_fkey foreign key (weekly_plan_id, couple_space_id)
     references public.weekly_plans (id, couple_space_id) on delete cascade,
   constraint recommendation_runs_id_space_key unique (id, couple_space_id)
 );
 
-create index recommendation_runs_plan_idx on public.recommendation_runs (weekly_plan_id, generated_at desc);
+create index recommendation_runs_plan_idx on public.recommendation_runs (weekly_plan_id, seq desc);
 
 create table public.recommendation_candidates (
   id uuid primary key default gen_random_uuid(),
@@ -275,7 +277,7 @@ begin
   end if;
   if exists (
     select 1 from public.recommendation_runs as r
-    where r.weekly_plan_id = v_run.weekly_plan_id and (r.generated_at, r.id) > (v_run.generated_at, v_run.id)
+    where r.weekly_plan_id = v_run.weekly_plan_id and r.seq > v_run.seq
   ) then
     raise exception 'recommendation run is outdated' using errcode = '40001';
   end if;
@@ -353,7 +355,7 @@ begin
     raise exception 'weekly plan was changed by someone else' using errcode = '40001';
   end if;
   select r.id into v_latest from public.recommendation_runs as r
-  where r.weekly_plan_id = v_plan.id order by r.generated_at desc, r.id desc limit 1;
+  where r.weekly_plan_id = v_plan.id order by r.seq desc limit 1;
   if v_latest <> v_run.id then
     raise exception 'candidate belongs to an old recommendation' using errcode = '40001';
   end if;
@@ -398,7 +400,7 @@ begin
   end if;
 
   select r.id into v_run from public.recommendation_runs as r
-  where r.weekly_plan_id = p_plan_id order by r.generated_at desc, r.id desc limit 1;
+  where r.weekly_plan_id = p_plan_id order by r.seq desc limit 1;
   select count(*) into v_count from public.recommendation_candidates as c where c.run_id = v_run and c.decision = 'ACCEPTED';
   if v_count <> 5 then
     raise exception 'exactly 5 main dishes must be accepted (now %)', v_count using errcode = '22023';

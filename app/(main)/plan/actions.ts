@@ -14,6 +14,7 @@ import {
   PlanConflictError,
   type Decision,
 } from "@/lib/services/weekly-plan";
+import { prepareShoppingForPlan } from "@/lib/services/shopping";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -94,6 +95,10 @@ export async function confirmPlanAction(planId: string, week: string, _previous:
     if (error instanceof PlanConflictError) return { error: error.message };
     return { error: "献立を確定できませんでした。通信状態を確認して、もう一度お試しください（まだ確定していません）。" };
   }
+  // 続けて副菜・汁物を付け、買い物リストの下書きを作る（失敗しても献立は確定済み。準備画面から再実行できる）
+  const prepared = await prepareShoppingForPlan(await createSupabaseServerClient(), planId)
+    .then(() => true)
+    .catch(() => false);
   revalidatePath("/");
-  redirect(`/?notice=plan-confirmed&week=${resolvePlanWeek(week)}`);
+  redirect(`/plan/shopping?week=${resolvePlanWeek(week)}&notice=plan-confirmed${prepared ? "" : "&error=prepare"}`);
 }

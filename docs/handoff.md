@@ -38,6 +38,14 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
+### Gate 6: 副菜・汁物と買い物（PR作成時点）
+
+- `lib/recommendation/sides.ts`、`lib/shopping/aggregate.ts`・`insurance.ts`、`lib/services/shopping.ts`（副菜の自動設定・合算・下書き・保険食材）
+- migration `20261003090000_create_shopping.sql`（買い物リスト・項目・カテゴリ順と関数、Realtime）
+- 画面：主菜の確定後に`/plan/shopping`（献立の確認→家にあるものチェック→保険食材→確定）、`/shopping`（カテゴリ順、押して購入済み・薄く残す、2人に同期、ほかに買う物の追加）、設定にカテゴリ順
+- `components/realtime/realtime-refresh.tsx`（Realtimeで画面を読み直す）
+- テスト：単体（sides・aggregate・insurance）、pgTAP `shopping.test.sql`（25件）、E2E `06-shopping.spec.ts`
+
 ### Gate 5: 週間計画（PR作成時点）
 
 - `lib/recommendation/weekly.ts`（推薦 `weekly-v0.1`、決定的・内訳と緩和理由つき）、`lib/services/weekly-plan.ts`（入力の収集・候補の保存・判断・手動追加・確定）、`lib/plan-week.ts`（今週/来週）

@@ -73,7 +73,7 @@ export async function getWeeklyPlan(supabase: SupabaseClient, planId: string): P
       .from("recommendation_runs")
       .select("id, notes")
       .eq("weekly_plan_id", planId)
-      .order("generated_at", { ascending: false })
+      .order("seq", { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase
