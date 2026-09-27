@@ -159,6 +159,14 @@ migration: `supabase/migrations/20261003090000_create_shopping.sql`。テスト:
 - 材料の合算・在庫差引（`lib/shopping/aggregate.ts`）、副菜・汁物（`lib/recommendation/sides.ts`）、保険食材（`lib/shopping/insurance.ts`）はアプリの純粋関数で計算してDB関数へ渡す
 - Realtime：`shopping_items`・`shopping_lists`（買い物中の2人の同時操作）
 
+## 確定済みschema: 日常利用（Gate 7）
+
+migration: `supabase/migrations/20261004090000_create_meal_histories.sql`。テスト: `supabase/tests/database/meal_histories.test.sql`。
+
+- `rice_portions`（本人のご飯量g、同じspaceで読め本人だけ変更）、`meal_histories`（食べた日・作った人・冪等キー（spaceごとに一意）・料理名と各自の栄養の写し・在庫で減らせなかった材料）、`recipe_histories.meal_history_id`
+- 関数（`SECURITY DEFINER`・自分のspaceを確認）：`complete_meal_set(meal_set, key, nutrition)`（献立セットの行ロック、冪等キー・作った済みなら何もしない、食事履歴・調理履歴・在庫の減算（`private.consume_recipe`→`inventory_consume`、理由COOKED）・献立セットを1 transactionで。全部作ったら週をCOMPLETED。初めて作った料理のIDを返す）、`complete_free_meal`（余裕日、advisory lockで冪等）、`swap_meal_set_dish`（楽観ロック・同じ種類のREADYだけ・作った後は不可）
+- 栄養の写し：作った時点のレシピの1人前の値と各自のご飯量（`lib/nutrition/meal.ts`）。値の無い料理は推測せず未登録として残す
+
 ## 後続で必要になる設計事項
 
 - 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。

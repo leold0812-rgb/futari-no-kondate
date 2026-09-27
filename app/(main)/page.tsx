@@ -1,8 +1,8 @@
 import { HomeView, type HomeMeal } from "@/components/home/home-view";
 import { requireMember } from "@/lib/auth/session";
 import { addDays, formatJapaneseDate, tokyoWeekStart } from "@/lib/dates";
-import { signImagePaths } from "@/lib/services/recipes";
-import { findWeeklyPlan, getWeeklyPlan } from "@/lib/services/weekly-plan";
+import { getHomeMeals } from "@/lib/services/meals";
+import { findWeeklyPlan } from "@/lib/services/weekly-plan";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
@@ -13,22 +13,20 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const nextWeek = addDays(week, 7);
   const [current, next] = await Promise.all([findWeeklyPlan(supabase, week), findWeeklyPlan(supabase, nextWeek)]);
 
-  let meals: HomeMeal[] = [];
-  if (current && current.status !== "DRAFT") {
-    const plan = await getWeeklyPlan(supabase, current.id);
-    const ids = (plan?.mealSets ?? []).map((m) => m.mainRecipeId);
-    const { data: recipes } = await supabase.from("recipes").select("id, name, image_path").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
-    const images = await signImagePaths(supabase, (recipes ?? []).map((r) => r.image_path as string | null));
-    meals = (plan?.mealSets ?? []).map((m) => {
-      const recipe = recipes?.find((r) => r.id === m.mainRecipeId);
-      return {
-        id: m.id,
-        mainRecipeId: m.mainRecipeId,
-        name: (recipe?.name as string | undefined) ?? "（削除されたレシピ）",
-        imageUrl: recipe?.image_path ? (images.get(recipe.image_path as string) ?? null) : null,
-        cooked: m.status === "COOKED",
-      };
-    });
+  const meals: HomeMeal[] = current && current.status !== "DRAFT" ? await getHomeMeals(supabase, current.id) : [];
+
+  // 買い物リストの準備が途中なら、ホームからも続きへ進めるようにする
+  let shoppingDraftWeek: string | null = null;
+  for (const [plan, w] of [
+    [current, week],
+    [next, nextWeek],
+  ] as const) {
+    if (!plan || plan.status === "DRAFT") continue;
+    const { data: list } = await supabase.from("shopping_lists").select("status").eq("weekly_plan_id", plan.id).maybeSingle();
+    if (!list || list.status === "DRAFT") {
+      shoppingDraftWeek = w;
+      break;
+    }
   }
 
   return (
@@ -39,6 +37,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
       nextWeek={nextWeek}
       nextWeekStatus={next?.status ?? "NONE"}
       justConfirmed={params.notice === "plan-confirmed"}
+      shoppingDraftWeek={shoppingDraftWeek}
     />
   );
 }
