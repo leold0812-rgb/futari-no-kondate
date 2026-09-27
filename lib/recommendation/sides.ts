@@ -208,3 +208,15 @@ export function chooseSidesAndSoups(mains: MainDish[], dishes: DishCandidate[], 
     return result;
   });
 }
+
+/** 差し替え用：1つの主菜に対する副菜（または汁物）の候補を点の高い順に並べる */
+export function rankAlternatives(
+  main: MainDish,
+  candidates: DishCandidate[],
+  usedIngredientIds: ReadonlySet<string>,
+  context: SideContext,
+): { dish: DishCandidate; points: number; reasons: string[] }[] {
+  return candidates
+    .map((dish) => ({ dish, ...score(dish, main, usedIngredientIds, context) }))
+    .sort((a, b) => b.points - a.points || a.dish.id.localeCompare(b.dish.id));
+}

@@ -38,6 +38,13 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - `next.config.ts`：`agentRules: false`（`next dev`がルート`AGENTS.md`へNext.js用ブロックを自動追記し、`CLAUDE.md`を生成するのを防ぐ）、`poweredByHeader: false`
 - Vitest + Testing Library の最小render test（`tests/unit/home-shell.test.tsx`）
 
+### Gate 7: 日常利用（PR作成時点）
+
+- `lib/nutrition/meal.ts`（1人分の栄養）、`lib/recommendation/free-day.ts`（余裕日）、`lib/services/meals.ts`（献立詳細・差し替え候補・ホームの並び）、`sides.ts`に`rankAlternatives`
+- migration `20261004090000_create_meal_histories.sql`（ご飯量・食事履歴・作った・余裕日・差し替え）
+- 画面：ホーム（そろそろ使いたい順・作ったは薄く・余裕日への導線・買い物準備の続き）、`/meals/[id]`（主菜/副菜/汁物・材料・各自のご飯と栄養・差し替え・作った・初回評価）、`/free-day`、設定にご飯量
+- テスト：単体（栄養・余裕日）、pgTAP `meal_histories.test.sql`（22件）、E2E `07-daily.spec.ts`
+
 ### Gate 6: 副菜・汁物と買い物（PR作成時点）
 
 - `lib/recommendation/sides.ts`、`lib/shopping/aggregate.ts`・`insurance.ts`、`lib/services/shopping.ts`（副菜の自動設定・合算・下書き・保険食材）
