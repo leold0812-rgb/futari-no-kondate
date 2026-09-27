@@ -7,6 +7,7 @@
 --   * 副菜・汁物の差し替えは meal_sets.version による楽観ロックで、古い画面からの上書きを拒否する。
 --   * ご飯量は個人設定（本人だけが変更）だが、献立画面で相手の量も表示できる（同じspaceで読める）。
 --   * 食事履歴の栄養は、作った時点のレシピの値と各自のご飯量の写し（あとでレシピを直しても履歴は変わらない）。
+--     値はDB内（private.meal_nutrition）で算出し、クライアントからは受け取らない。余裕日も2人分に固定する。
 
 -- ---------------------------------------------------------------------------
 -- rice_portions（ご飯量、個人）
@@ -115,12 +116,57 @@ $$;
 revoke all on function private.consume_recipe(uuid, uuid, integer) from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
+-- 内部：各自の栄養の写し（料理の1人前の値＋ご飯量）。クライアントの値は使わない
+-- ---------------------------------------------------------------------------
+-- 戻り値: { "<user_id>": { energyKcal, proteinG, fatG, carbsG, riceGrams, complete, missing } }
+-- ご飯の栄養はGate 2b（食品成分表）で加算する。それまでは、ご飯を食べる人は complete=false（missing に「ご飯」）
+create function private.meal_nutrition(p_space uuid, p_recipe_ids uuid[])
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with dishes as (
+    select r.name, r.energy_kcal, r.protein_g, r.fat_g, r.carbs_g
+    from unnest(p_recipe_ids) as u(id)
+    join public.recipes as r on r.id = u.id and r.couple_space_id = p_space
+  ),
+  totals as (
+    select coalesce(sum(d.energy_kcal), 0) as energy,
+           coalesce(sum(d.protein_g), 0) as protein,
+           coalesce(sum(d.fat_g), 0) as fat,
+           coalesce(sum(d.carbs_g), 0) as carbs,
+           coalesce(jsonb_agg(d.name) filter (where d.energy_kcal is null), '[]'::jsonb) as missing
+    from dishes as d
+  )
+  select coalesce(jsonb_object_agg(
+    p.id::text,
+    jsonb_build_object(
+      'energyKcal', round(t.energy),
+      'proteinG', round(t.protein, 1),
+      'fatG', round(t.fat, 1),
+      'carbsG', round(t.carbs, 1),
+      'riceGrams', coalesce(rp.grams, 0),
+      'missing', t.missing || case when coalesce(rp.grams, 0) > 0 then '["ご飯"]'::jsonb else '[]'::jsonb end,
+      'complete', jsonb_array_length(t.missing) = 0 and coalesce(rp.grams, 0) = 0
+    )
+  ), '{}'::jsonb)
+  from public.profiles as p
+  cross join totals as t
+  left join public.rice_portions as rp on rp.user_id = p.id
+  where p.couple_space_id = p_space
+$$;
+
+revoke all on function private.meal_nutrition(uuid, uuid[]) from public, anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
 -- 作った（献立セット）。1 transaction・冪等
 -- ---------------------------------------------------------------------------
 -- 戻り値: { meal_history_id, already, unconsumed, first_time_recipe_ids }
 --   already = true なら同じ操作は処理済み（二重送信・相手が先に押した）で、何も変更していない
 --   first_time_recipe_ids: 今回が初めての調理になったレシピ（初回評価を求める）
-create function public.complete_meal_set(p_meal_set_id uuid, p_idempotency_key text, p_nutrition jsonb)
+create function public.complete_meal_set(p_meal_set_id uuid, p_idempotency_key text)
 returns jsonb
 language plpgsql
 security definer
@@ -162,7 +208,7 @@ begin
     v_space, p_meal_set_id, v_today, auth.uid(), p_idempotency_key,
     (select coalesce(jsonb_agg(jsonb_build_object('recipe_id', r.id, 'name', r.name, 'dish_type', r.dish_type)), '[]'::jsonb)
      from unnest(v_recipes) with ordinality as u(id, ord) join public.recipes as r on r.id = u.id),
-    coalesce(p_nutrition, '{}'::jsonb)
+    private.meal_nutrition(v_space, v_recipes)
   )
   returning id into v_history;
 
@@ -192,7 +238,7 @@ $$;
 -- ---------------------------------------------------------------------------
 -- 作った（余裕日：献立に無い料理）。1 transaction・冪等
 -- ---------------------------------------------------------------------------
-create function public.complete_free_meal(p_recipe_id uuid, p_servings integer, p_idempotency_key text, p_nutrition jsonb)
+create function public.complete_free_meal(p_recipe_id uuid, p_idempotency_key text)
 returns jsonb
 language plpgsql
 security definer
@@ -208,9 +254,6 @@ declare
 begin
   if v_space is null then
     raise exception 'not a member of any couple space' using errcode = '42501';
-  end if;
-  if p_servings is null or p_servings not between 1 and 8 then
-    raise exception 'servings must be 1 to 8' using errcode = '22023';
   end if;
   if not exists (
     select 1 from public.recipes as r where r.id = p_recipe_id and r.couple_space_id = v_space and r.deleted_at is null
@@ -228,13 +271,14 @@ begin
   insert into public.meal_histories (couple_space_id, eaten_on, completed_by, idempotency_key, dishes, nutrition_per_person)
   select v_space, v_today, auth.uid(), p_idempotency_key,
          jsonb_build_array(jsonb_build_object('recipe_id', r.id, 'name', r.name, 'dish_type', r.dish_type)),
-         coalesce(p_nutrition, '{}'::jsonb)
+         private.meal_nutrition(v_space, array[p_recipe_id])
   from public.recipes as r where r.id = p_recipe_id
   returning id into v_history;
 
   insert into public.recipe_histories (couple_space_id, recipe_id, cooked_on, cooked_by, meal_history_id)
   values (v_space, p_recipe_id, v_today, auth.uid(), v_history);
-  v_unconsumed := private.consume_recipe(v_space, p_recipe_id, p_servings);
+  -- 2人専用のため、余裕日も2人分として在庫を減らす（人数を外から指定させない）
+  v_unconsumed := private.consume_recipe(v_space, p_recipe_id, 2);
   update public.meal_histories as h set unconsumed = v_unconsumed where h.id = v_history;
 
   return jsonb_build_object(
@@ -287,11 +331,11 @@ begin
 end;
 $$;
 
-revoke all on function public.complete_meal_set(uuid, text, jsonb) from public, anon;
-revoke all on function public.complete_free_meal(uuid, integer, text, jsonb) from public, anon;
+revoke all on function public.complete_meal_set(uuid, text) from public, anon;
+revoke all on function public.complete_free_meal(uuid, text) from public, anon;
 revoke all on function public.swap_meal_set_dish(uuid, text, uuid, integer) from public, anon;
-grant execute on function public.complete_meal_set(uuid, text, jsonb) to authenticated;
-grant execute on function public.complete_free_meal(uuid, integer, text, jsonb) to authenticated;
+grant execute on function public.complete_meal_set(uuid, text) to authenticated;
+grant execute on function public.complete_free_meal(uuid, text) to authenticated;
 grant execute on function public.swap_meal_set_dish(uuid, text, uuid, integer) to authenticated;
 
 alter publication supabase_realtime add table public.meal_histories;

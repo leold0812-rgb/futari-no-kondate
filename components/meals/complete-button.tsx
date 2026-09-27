@@ -16,6 +16,8 @@ type Props = {
   setRatingAction: (recipeId: string, rating: Rating | null) => Promise<{ error?: string }>;
   /** 画面下に固定するか（献立画面） */
   sticky?: boolean;
+  /** すでに作った記録がある（自分の操作の結果を表示中でなければ、ボタンを出さない） */
+  done?: boolean;
 };
 
 function newKey() {
@@ -27,11 +29,28 @@ function newKey() {
  * 画面ごとに1つの一意キーを使うため、通信の再送や連打でも二重に記録されない。
  * そのレシピを初めて作った場合だけ、3段階の評価を聞く。
  */
-export function CompleteButton({ targetId, label, action, setRatingAction, sticky = true }: Props) {
+export function CompleteButton({ targetId, label, action, setRatingAction, sticky = true, done = false }: Props) {
   const [key] = useState(newKey);
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<CompleteResult | null>(null);
   const [rated, setRated] = useState<Record<string, Rating>>({});
+  const [ratingError, setRatingError] = useState<string | null>(null);
+
+  async function rate(recipeId: string, rating: Rating) {
+    const previous = rated[recipeId];
+    setRatingError(null);
+    setRated((r) => ({ ...r, [recipeId]: rating }));
+    const response = await setRatingAction(recipeId, rating).catch(() => ({ error: "通信に失敗しました。" }));
+    if (response.error) {
+      setRated((r) => {
+        const next = { ...r };
+        if (previous) next[recipeId] = previous;
+        else delete next[recipeId];
+        return next;
+      });
+      setRatingError(`${response.error}（評価は保存されていません。もう一度選んでください）`);
+    }
+  }
 
   function complete() {
     startTransition(async () => {
@@ -61,10 +80,7 @@ export function CompleteButton({ targetId, label, action, setRatingAction, stick
                   type="button"
                   className={buttonClassName({ variant: rated[recipe.id] === rating ? "primary" : "secondary", size: "small" })}
                   aria-pressed={rated[recipe.id] === rating}
-                  onClick={() => {
-                    setRated((r) => ({ ...r, [recipe.id]: rating }));
-                    void setRatingAction(recipe.id, rating);
-                  }}
+                  onClick={() => void rate(recipe.id, rating)}
                 >
                   {RATING_LABELS[rating]}
                 </button>
@@ -72,6 +88,7 @@ export function CompleteButton({ targetId, label, action, setRatingAction, stick
             </div>
           </section>
         ))}
+        {ratingError ? <Alert tone="error">{ratingError}</Alert> : null}
         <Link href="/" className={buttonClassName({ variant: "secondary", block: true })}>
           ホームへ戻る
         </Link>
@@ -79,6 +96,7 @@ export function CompleteButton({ targetId, label, action, setRatingAction, stick
     );
   }
 
+  if (done) return null;
   return (
     <div className={sticky ? styles.completeBox : styles.done}>
       {result?.error ? <Alert tone="error">{result.error}</Alert> : null}

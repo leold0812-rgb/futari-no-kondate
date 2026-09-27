@@ -136,9 +136,8 @@ export default async function MealSetPage({ params, searchParams }: PageProps<"/
         </Link>
       </Card>
 
-      {planned ? (
-        <CompleteButton targetId={detail.id} label="作った" action={completeMealSetAction} setRatingAction={setRatingAction} />
-      ) : null}
+      {/* 記録後の再描画でも結果（初回評価）を表示し続けるよう、ボタンの部品は常に置く */}
+      <CompleteButton targetId={detail.id} label="作った" action={completeMealSetAction} setRatingAction={setRatingAction} done={!planned} />
     </div>
   );
 }

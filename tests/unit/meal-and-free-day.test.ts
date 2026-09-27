@@ -67,4 +67,12 @@ describe("余裕日の候補", () => {
     );
     expect(candidate.missing).toEqual(["卵"]);
   });
+
+  it("同じ食材の行は必要量を合算して判定する", () => {
+    const [candidate] = recommendFreeDay(
+      [recipe("double-egg", { lines: [{ ingredientId: "egg", name: "卵", quantity: 3, unit: "個" }, { ingredientId: "egg", name: "卵", quantity: 2, unit: "個" }] })],
+      context,
+    );
+    expect(candidate.missing).toEqual(["卵"]);
+  });
 });

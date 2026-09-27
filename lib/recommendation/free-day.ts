@@ -37,15 +37,23 @@ export const FREE_DAY_COUNT = 5;
 
 export function scoreFreeDay(recipe: FreeDayRecipe, context: FreeDayContext): FreeDayCandidate {
   const factor = context.servings / Math.max(1, recipe.servings);
-  const counted = recipe.lines.filter((l) => l.quantity !== null);
+  // 同じ食材・同じ単位グループの行は必要量を合算してから在庫と比べる
+  const needs = new Map<string, { name: string; ingredientId: string | null; group: string; amount: number }>();
+  for (const line of recipe.lines) {
+    if (line.quantity === null) continue;
+    const group = unitGroup(line.unit);
+    const key = `${line.ingredientId ?? `name:${line.name}`}|${group}`;
+    const entry = needs.get(key) ?? { name: line.name, ingredientId: line.ingredientId, group, amount: 0 };
+    entry.amount += (toBaseQuantity(line.quantity, line.unit) ?? line.quantity) * factor;
+    needs.set(key, entry);
+  }
+  const counted = [...needs.values()];
   const missing: string[] = [];
   let covered = 0;
-  for (const line of counted) {
-    const group = unitGroup(line.unit);
-    const need = (toBaseQuantity(line.quantity!, line.unit) ?? line.quantity!) * factor;
-    const have = line.ingredientId ? (context.stock.get(line.ingredientId)?.get(group) ?? 0) : 0;
-    if (have >= need - 1e-9) covered += 1;
-    else if (!missing.includes(line.name)) missing.push(line.name);
+  for (const need of counted) {
+    const have = need.ingredientId ? (context.stock.get(need.ingredientId)?.get(need.group) ?? 0) : 0;
+    if (have >= need.amount - 1e-9) covered += 1;
+    else if (!missing.includes(need.name)) missing.push(need.name);
   }
   const coverage = counted.length === 0 ? 0 : covered / counted.length;
   const reasons: string[] = [];

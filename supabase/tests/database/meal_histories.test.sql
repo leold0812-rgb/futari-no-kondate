@@ -1,7 +1,7 @@
 -- Gate 7: 作った（冪等・在庫減算・履歴）、差し替え（楽観ロック）、ご飯量、余裕日
 begin;
 
-select plan(22);
+select plan(23);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -65,7 +65,7 @@ select public.swap_meal_set_dish('50000000-0000-4000-8000-000000000001', 'SIDE',
 -- 作った
 create temporary table result (label text primary key, value jsonb) on commit drop;
 grant all on result to authenticated;
-insert into result values ('first', public.complete_meal_set('50000000-0000-4000-8000-000000000001', 'key-first-0001', '{"x":1}'));
+insert into result values ('first', public.complete_meal_set('50000000-0000-4000-8000-000000000001', 'key-first-0001'));
 select is((select (value ->> 'already')::boolean from result where label = 'first'), false, '作ったを記録できる');
 select is(
   (select jsonb_array_length(value -> 'first_time_recipe_ids') from result where label = 'first'),
@@ -91,16 +91,21 @@ select is(
 );
 select is((select status from public.weekly_plans), 'COMPLETED', 'すべて作ると週の計画は完了になる');
 select is(
-  (select (value ->> 'already')::boolean from (select public.complete_meal_set('50000000-0000-4000-8000-000000000001', 'key-first-0001', '{}') as value) as r),
+  (select (value ->> 'already')::boolean from (select public.complete_meal_set('50000000-0000-4000-8000-000000000001', 'key-first-0001') as value) as r),
   true,
   '同じ操作の再送は処理済みとして何もしない（冪等）'
 );
 select is(
-  (select (value ->> 'already')::boolean from (select public.complete_meal_set('50000000-0000-4000-8000-000000000001', 'key-other-0002', '{}') as value) as r),
+  (select (value ->> 'already')::boolean from (select public.complete_meal_set('50000000-0000-4000-8000-000000000001', 'key-other-0002') as value) as r),
   true,
   '相手が別の画面から押しても二重には記録しない'
 );
 select is((select count(*)::int from public.meal_histories), 1, '食事履歴は1件だけ');
+select is(
+  (select jsonb_typeof(nutrition_per_person -> '00000000-0000-4000-8000-00000000000a') from public.meal_histories),
+  'object',
+  '栄養の写しはDBで2人分を算出する（クライアントの値は使わない）'
+);
 select throws_ok(
   $$select public.swap_meal_set_dish('50000000-0000-4000-8000-000000000001', 'SIDE', null, (select version from public.meal_sets))$$,
   '55000',
@@ -110,12 +115,12 @@ select throws_ok(
 
 -- 余裕日
 select is(
-  (select value ->> 'already' from (select public.complete_free_meal('20000000-0000-4000-8000-000000000005', 2, 'key-free-0001', '{}') as value) as r),
+  (select value ->> 'already' from (select public.complete_free_meal('20000000-0000-4000-8000-000000000005', 'key-free-0001') as value) as r),
   'false',
   '献立に無い料理も作ったを記録できる'
 );
 select is(
-  (select (value ->> 'already')::boolean from (select public.complete_free_meal('20000000-0000-4000-8000-000000000005', 2, 'key-free-0001', '{}') as value) as r),
+  (select (value ->> 'already')::boolean from (select public.complete_free_meal('20000000-0000-4000-8000-000000000005', 'key-free-0001') as value) as r),
   true,
   '余裕日の作ったも冪等'
 );
@@ -138,7 +143,7 @@ reset role;
 select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000d", "role": "authenticated"}', true);
 set local role authenticated;
 select throws_ok(
-  $$select public.complete_meal_set('50000000-0000-4000-8000-000000000001', 'key-hack-0001', '{}')$$,
+  $$select public.complete_meal_set('50000000-0000-4000-8000-000000000001', 'key-hack-0001')$$,
   'P0002',
   null,
   '別spaceの献立は記録できない'
