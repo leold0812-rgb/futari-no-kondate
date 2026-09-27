@@ -1,7 +1,7 @@
 -- Gate 8: 体重は本人だけ（パートナーにも見せない・Realtimeに出さない）
 begin;
 
-select plan(14);
+select plan(18);
 
 insert into auth.users (id) values
   ('00000000-0000-4000-8000-00000000000a'),
@@ -27,30 +27,47 @@ select ok(
 select set_config('request.jwt.claims', '{"sub": "00000000-0000-4000-8000-00000000000a", "role": "authenticated"}', true);
 set local role authenticated;
 select lives_ok(
-  $$insert into public.weight_records (measured_on, weight_kg) values ('2026-09-28', 60.5)$$,
+  $$insert into public.weight_records (measured_on, weight_kg) values ((now() at time zone 'Asia/Tokyo')::date - 1, 60.5)$$,
   '本人は体重を記録できる（user_idは自分になる）'
 );
 select is((select user_id from public.weight_records), '00000000-0000-4000-8000-00000000000a'::uuid, '記録は自分のものになる');
 select throws_ok(
-  $$insert into public.weight_records (user_id, measured_on, weight_kg) values ('00000000-0000-4000-8000-00000000000b', '2026-09-28', 70)$$,
+  $$insert into public.weight_records (user_id, measured_on, weight_kg) values ('00000000-0000-4000-8000-00000000000b', (now() at time zone 'Asia/Tokyo')::date - 1, 70)$$,
   '42501',
   null,
   '相手の体重は記録できない'
 );
 select throws_ok(
-  $$insert into public.weight_records (measured_on, weight_kg) values ('2026-09-28', 61)$$,
+  $$insert into public.weight_records (measured_on, weight_kg) values ((now() at time zone 'Asia/Tokyo')::date - 1, 61)$$,
   '23505',
   null,
   '同じ日の記録は1件だけ（入れ直しは上書き）'
 );
 select throws_ok(
-  $$insert into public.weight_records (measured_on, weight_kg) values ('2026-09-29', 5)$$,
+  $$insert into public.weight_records (measured_on, weight_kg) values ((now() at time zone 'Asia/Tokyo')::date - 2, 5)$$,
   '23514',
   null,
   '体重は20〜300kgの範囲だけ'
 );
-update public.weight_records set weight_kg = 60.2 where measured_on = '2026-09-28';
+update public.weight_records set weight_kg = 60.2 where measured_on = (now() at time zone 'Asia/Tokyo')::date - 1;
 select is((select weight_kg from public.weight_records), 60.2, '本人は自分の記録を直せる');
+select throws_ok(
+  $$insert into public.weight_records (measured_on, weight_kg) values ((now() at time zone 'Asia/Tokyo')::date + 1, 60)$$,
+  '23514',
+  null,
+  '未来の日付は直接書き込んでも拒否する'
+);
+select throws_ok(
+  $$insert into public.weight_records (measured_on, weight_kg) values ((now() at time zone 'Asia/Tokyo')::date - 367, 60)$$,
+  '23514',
+  null,
+  '1年より前の日付は直接書き込んでも拒否する'
+);
+select lives_ok(
+  $$insert into public.weight_records (measured_on, weight_kg) values ((now() at time zone 'Asia/Tokyo')::date, 60)$$,
+  '今日の日付は記録できる'
+);
+delete from public.weight_records where measured_on = (now() at time zone 'Asia/Tokyo')::date;
 reset role;
 
 -- パートナー（b）：同じspaceでも見えない・変えられない
@@ -75,8 +92,18 @@ select throws_ok(
   null,
   '記録を相手へ付け替えられない'
 );
-delete from public.weight_records where measured_on = '2026-09-28';
+delete from public.weight_records;
 select is((select count(*)::int from public.weight_records), 0, '本人は自分の記録を削除できる');
+reset role;
+
+-- 復元（service role）は古い日付も戻せる
+reset role;
+select set_config('request.jwt.claims', '{"role": "service_role"}', true);
+set local role service_role;
+select lives_ok(
+  $$insert into public.weight_records (user_id, measured_on, weight_kg) values ('00000000-0000-4000-8000-00000000000a', '2020-01-01', 60)$$,
+  '復元（service role）は1年より前の記録も入れられる'
+);
 reset role;
 
 -- 未ログイン

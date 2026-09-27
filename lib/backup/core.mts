@@ -19,7 +19,7 @@ export const BACKUP_VERSION = 1;
 export const RETENTION_DAYS = 30;
 export const BACKUP_PREFIX = "backups/";
 
-/** 復元する順（外部キーの親が先）と、読み出しの並び（主キー） */
+/** 復元する順（外部キーの親が先）と、読み出し・消去に使う主キー。DB関数 public.backup_snapshot() と同じ並び */
 export const BACKUP_TABLES = [
   { name: "couple_spaces", key: ["id"] },
   { name: "profiles", key: ["id"] },
@@ -54,24 +54,18 @@ export type BackupFile = {
   tables: Record<TableName, Row[]>;
 };
 
-const PAGE = 1000;
-
-/** すべての対象テーブルを読み出す（service roleのclientで呼ぶ） */
+/**
+ * すべての対象テーブルを読み出す（service roleのclientで呼ぶ）。
+ * DB関数 public.backup_snapshot() が1つのSQL文で読むため、全テーブルが同じ時点の内容になる
+ * （テーブルごとに読むと、途中で追加された子の行だけが入り、復元で外部キー違反になり得る）。
+ */
 export async function exportTables(client: SupabaseClient, now: Date = new Date()): Promise<BackupFile> {
-  const tables = {} as Record<TableName, Row[]>;
-  for (const table of BACKUP_TABLES) {
-    const rows: Row[] = [];
-    for (let from = 0; ; from += PAGE) {
-      let query = client.from(table.name).select("*");
-      for (const column of table.key) query = query.order(column, { ascending: true });
-      const { data, error } = await query.range(from, from + PAGE - 1);
-      if (error) throw new Error(`${table.name} を読み出せませんでした: ${error.message}`);
-      rows.push(...((data ?? []) as Row[]));
-      if (!data || data.length < PAGE) break;
-    }
-    tables[table.name] = rows;
-  }
-  return { format: BACKUP_FORMAT, version: BACKUP_VERSION, createdAt: now.toISOString(), tables };
+  const { data, error } = await client.rpc("backup_snapshot");
+  if (error) throw new Error(`バックアップ用の読み出しに失敗しました: ${error.message}`);
+  const backup: BackupFile = { format: BACKUP_FORMAT, version: BACKUP_VERSION, createdAt: now.toISOString(), tables: data as Record<TableName, Row[]> };
+  const problem = validateBackup(backup);
+  if (problem) throw new Error(problem);
+  return backup;
 }
 
 export function countRows(backup: BackupFile): Record<string, number> {

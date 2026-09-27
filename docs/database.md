@@ -178,11 +178,11 @@ migration: `supabase/migrations/20261005090000_create_food_composition.sql`。�
 
 ## 確定済みschema: 体重とバックアップ（Gate 8）
 
-migration: `supabase/migrations/20261006090000_create_weight_records.sql`。テスト: `supabase/tests/database/weight_records.test.sql`、`tests/unit/records-summary.test.ts`、`tests/unit/backup-core.test.ts`、CIの復元テスト（`scripts/backup/roundtrip-check.mts`）。
+migration: `supabase/migrations/20261006090000_create_weight_records.sql`、`20261006100000_create_backup_snapshot.sql`。テスト: `supabase/tests/database/weight_records.test.sql`、`backup_snapshot.test.sql`、`tests/unit/records-summary.test.ts`、`tests/unit/backup-core.test.ts`、CIの復元テスト（`scripts/backup/roundtrip-check.mts`）。
 
-- `weight_records`（user_id既定`auth.uid()`、measured_on、weight_kg 20〜300・小数1桁、`(user_id, measured_on)` unique）。`couple_space_id`を持たず、policyは本人の行だけselect/insert/update/delete。Realtimeのpublicationに入れない。同じ日の入力は上書き（upsert）
+- `weight_records`（user_id既定`auth.uid()`、measured_on、weight_kg 20〜300・小数1桁、`(user_id, measured_on)` unique）。`couple_space_id`を持たず、policyは本人の行だけselect/insert/update/delete。Realtimeのpublicationに入れない。同じ日の入力は上書き（upsert）。利用者の書き込みは未来日と366日より前をtriggerで拒否（service roleの復元は対象外）
 - 記録画面の週平均夕食カロリーは`meal_histories.nutrition_per_person`の本人の値のうち完全なものだけで平均する（`lib/records/summary.ts`）
-- バックアップ（`lib/backup/core.mts`）はservice roleでpublicの利用データを主キー順に読み、gzip JSONでprivate Blobへ保存。対象外：`private.pin_credentials`・`login_throttles`・`recipe_import_logs`・auth.users・画像ファイル。復元は空のprojectへ外部キーの親から入れ、`recommendation_runs.seq`（常に生成されるidentity）は外して元の順に採番し直す
+- バックアップ（`lib/backup/core.mts`）はservice role専用のDB関数`public.backup_snapshot()`で全対象テーブルを1つのSQL文（同じスナップショット）から主キー順に読み、gzip JSONでprivate Blobへ保存。対象外：`private.pin_credentials`・`login_throttles`・`recipe_import_logs`・auth.users・画像ファイル。復元は空のprojectへ外部キーの親から入れ、`recommendation_runs.seq`（常に生成されるidentity）は外して元の順に採番し直す
 
 ## 後続で必要になる設計事項
 

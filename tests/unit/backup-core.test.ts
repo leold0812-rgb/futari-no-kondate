@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   BACKUP_FORMAT,
@@ -31,6 +33,20 @@ describe("BACKUP_TABLES", () => {
     expect(names).not.toContain("pin_credentials");
     expect(names).not.toContain("login_throttles");
     expect(names).not.toContain("recipe_import_logs");
+  });
+
+  it("DB関数 backup_snapshot() と同じテーブルを同じ順・同じ主キーで読む", () => {
+    const sql = readFileSync(join(__dirname, "..", "..", "supabase", "migrations", "20261006100000_create_backup_snapshot.sql"), "utf8");
+    const inSql = [...sql.matchAll(/'(\w+)', coalesce\(\(select jsonb_agg\(to_jsonb\(t\) order by ([^)]+)\) from public\.(\w+) as t\)/g)].map((m) => ({
+      name: m[1],
+      key: m[2].split(",").map((k) => k.trim().replace(/^t\./, "")),
+      from: m[3],
+    }));
+    expect(inSql.map((t) => t.name)).toEqual(BACKUP_TABLES.map((t) => t.name));
+    for (const [i, table] of BACKUP_TABLES.entries()) {
+      expect(inSql[i].from).toBe(table.name);
+      expect(inSql[i].key).toEqual([...table.key]);
+    }
   });
 
   it("親テーブルが子より先に並ぶ（復元の順）", () => {

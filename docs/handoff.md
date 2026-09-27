@@ -40,14 +40,14 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 
 ### Gate 8: 記録・バックアップ・PWA仕上げ（PR作成時点）
 
-- migration `20261006090000_create_weight_records.sql`（本人だけのRLS、Realtime対象外）
+- migration `20261006090000_create_weight_records.sql`（本人だけのRLS、Realtime対象外、利用者の書き込みは未来日・1年より前を拒否）、`20261006100000_create_backup_snapshot.sql`（全対象テーブルを同じスナップショットで読むservice role専用関数）
 - 記録画面 `/records`：自分の体重（入力・過去90日のSVGグラフ・直近5件の削除）、週平均夕食カロリー（本人・直近4週）、食事の履歴（30件）。`lib/records/summary.ts`、`lib/services/records.ts`、`components/records/`
 - バックアップ：`lib/backup/core.mts`（対象テーブル・読み出し・復元・保持期限）、`app/api/cron/backup/route.ts`（CRON_SECRET認証・private Blobへgzip JSON・30日削除）、`vercel.json`（毎日UTC 18時）
 - 管理スクリプト `scripts/backup/`：`export.mts`（手元へ保存）、`fetch.mts`（Blobから取得）、`restore.mts`（空のprojectへ復元・ID対応表）、`roundtrip-check.mts`（CIの復元テスト）
 - PWA：PNGアイコン（192・512・maskable・apple-touch-icon）、`public/sw.js`（オフライン案内だけ。利用データはキャッシュしない）、`/offline`、`app/(main)/error.tsx`、`app/not-found.tsx`
 - 手順書：`docs/runbooks/backup-restore.md`、`docs/runbooks/production-checklist.md`、`hosted-development-setup.md` J
 - 依存追加：`@vercel/blob` 2.8.0（固定）
-- テスト：unit 373件（`records-summary`・`backup-core`を追加）、pgTAP `weight_records.test.sql` 14件、E2E `09-records.spec.ts`（体重・相手に見えない・Cronの認証）、CIの復元テスト
+- テスト：unit 375件（`records-summary`・`backup-core`を追加）、pgTAP `weight_records.test.sql` 18件・`backup_snapshot.test.sql` 5件、E2E `09-records.spec.ts`（体重・相手に見えない・Cronの認証）、CIの復元テスト
 
 ### Gate 2b: 食品成分表と栄養計算（PR作成時点）
 

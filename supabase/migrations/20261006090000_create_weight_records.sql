@@ -5,6 +5,8 @@
 --   * couple_space_idを持たない（共有データの取得・共有APIの対象にしない）。
 --   * Realtimeのpublicationへ追加しない。
 --   * 1日1件。同じ日に入れ直すと上書きする（仕事後に考える量を減らすため、日付の重複を気にさせない）。
+--   * 利用者の書き込みは、未来日と1年（366日）より前の日付を拒否する（画面の検証と同じ。直接の書き込みも同じ制限）。
+--     service role（バックアップからの復元）は利用者ではないため対象外（古い記録も戻せるように）。
 
 create table public.weight_records (
   id uuid primary key default gen_random_uuid(),
@@ -36,3 +38,29 @@ create policy weight_records_delete_own on public.weight_records
 create trigger weight_records_set_updated_at
   before update on public.weight_records
   for each row execute function private.set_updated_at();
+
+create function private.check_weight_record_date()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+declare
+  v_today date := (pg_catalog.now() at time zone 'Asia/Tokyo')::date;
+begin
+  if (select auth.uid()) is null then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and new.measured_on = old.measured_on then
+    return new;
+  end if;
+  if new.measured_on > v_today or new.measured_on < v_today - 366 then
+    raise exception 'measured_on must be within the past year'
+      using errcode = 'check_violation', constraint = 'weight_records_measured_on_range';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger weight_records_check_date
+  before insert or update on public.weight_records
+  for each row execute function private.check_weight_record_date();
