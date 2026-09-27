@@ -96,7 +96,9 @@ export async function confirmPlanAction(planId: string, week: string, _previous:
     return { error: "献立を確定できませんでした。通信状態を確認して、もう一度お試しください（まだ確定していません）。" };
   }
   // 続けて副菜・汁物を付け、買い物リストの下書きを作る（失敗しても献立は確定済み。準備画面から再実行できる）
-  await prepareShoppingForPlan(await createSupabaseServerClient(), planId).catch(() => undefined);
+  const prepared = await prepareShoppingForPlan(await createSupabaseServerClient(), planId)
+    .then(() => true)
+    .catch(() => false);
   revalidatePath("/");
-  redirect(`/plan/shopping?week=${resolvePlanWeek(week)}&notice=plan-confirmed`);
+  redirect(`/plan/shopping?week=${resolvePlanWeek(week)}&notice=plan-confirmed${prepared ? "" : "&error=prepare"}`);
 }

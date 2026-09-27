@@ -48,12 +48,29 @@ export default async function ShoppingPrepPage({ searchParams }: PageProps<"/pla
       </>
     );
   }
-  const [plan, list] = await Promise.all([getWeeklyPlan(supabase, found.id), getShoppingListForPlan(supabase, found.id)]);
+  let loaded: [Awaited<ReturnType<typeof getWeeklyPlan>>, Awaited<ReturnType<typeof getShoppingListForPlan>>];
+  try {
+    loaded = await Promise.all([getWeeklyPlan(supabase, found.id), getShoppingListForPlan(supabase, found.id)]);
+  } catch {
+    return (
+      <>
+        {header}
+        <Alert tone="error" title="買い物リストを読み込めませんでした">
+          <p>通信状態を確認して、画面を再読み込みしてください（献立と買い物の準備はそのまま残っています）。</p>
+        </Alert>
+      </>
+    );
+  }
+  const [plan, list] = loaded;
   if (!list) {
     return (
       <>
         {header}
-        {params.error === "prepare" ? <Alert tone="error">買い物リストを作れませんでした。もう一度お試しください。</Alert> : null}
+        {params.error === "prepare" ? (
+          <Alert tone="error" title="買い物リストを作れませんでした">
+            <p>献立は決まっています。下のボタンで、副菜・汁物と買い物リストの準備をもう一度行えます。</p>
+          </Alert>
+        ) : null}
         <form action={prepareShoppingAction.bind(null, found.id, week)}>
           <Button type="submit" size="large" block>
             副菜・汁物と買い物リストを用意する

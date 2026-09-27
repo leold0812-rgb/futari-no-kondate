@@ -134,7 +134,11 @@ export async function prepareShoppingForPlan(supabase: SupabaseClient, planId: s
     const dishIds = (candidates ?? []).filter((c) => !excluded.has(c.id)).map((c) => c.id as string);
     const mainIds = mealSets.map((s) => s.main_recipe_id as string);
     const { recipes, lines } = await loadRecipes(supabase, [...mainIds, ...dishIds]);
-    const { data: histories } = await supabase.from("recipe_histories").select("recipe_id, cooked_on").in("recipe_id", dishIds.length ? dishIds : ["00000000-0000-0000-0000-000000000000"]);
+    const { data: histories, error: historyError } = await supabase
+      .from("recipe_histories")
+      .select("recipe_id, cooked_on")
+      .in("recipe_id", dishIds.length ? dishIds : ["00000000-0000-0000-0000-000000000000"]);
+    if (historyError) throw new Error(`調理履歴を読み込めませんでした: ${historyError.message}`);
     const lastCooked = new Map<string, string>();
     for (const h of histories ?? []) {
       if ((lastCooked.get(h.recipe_id) ?? "") < h.cooked_on) lastCooked.set(h.recipe_id, h.cooked_on);
@@ -222,14 +226,16 @@ export async function prepareShoppingForPlan(supabase: SupabaseClient, planId: s
   return listId as string;
 }
 
+/** 週の計画の買い物リスト。まだ無ければnull。読み込みに失敗した場合は例外（「無い」と区別する） */
 export async function getShoppingListForPlan(supabase: SupabaseClient, planId: string): Promise<ShoppingListView | null> {
-  const { data: list } = await supabase.from("shopping_lists").select("id, weekly_plan_id, status").eq("weekly_plan_id", planId).maybeSingle();
+  const { data: list, error } = await supabase.from("shopping_lists").select("id, weekly_plan_id, status").eq("weekly_plan_id", planId).maybeSingle();
+  if (error) throw new Error(`買い物リストを読み込めませんでした: ${error.message}`);
   if (!list) return null;
   return getShoppingList(supabase, list.id as string);
 }
 
 export async function getShoppingList(supabase: SupabaseClient, listId: string): Promise<ShoppingListView | null> {
-  const [{ data: list }, { data: items }, { data: orders }] = await Promise.all([
+  const [{ data: list, error: listError }, { data: items, error: itemsError }, { data: orders, error: ordersError }] = await Promise.all([
     supabase.from("shopping_lists").select("id, weekly_plan_id, status").eq("id", listId).maybeSingle(),
     supabase
       .from("shopping_items")
@@ -240,6 +246,10 @@ export async function getShoppingList(supabase: SupabaseClient, listId: string):
       .order("position"),
     supabase.from("shopping_category_orders").select("category, position").order("position"),
   ]);
+  // 項目を読めないまま空として表示・確定させない
+  if (listError || itemsError || ordersError) {
+    throw new Error(`買い物リストを読み込めませんでした: ${(listError ?? itemsError ?? ordersError)!.message}`);
+  }
   if (!list) return null;
   const ordered = (orders ?? []).map((o) => o.category as IngredientCategory);
   const categoryOrder = [...ordered, ...INGREDIENT_CATEGORIES.filter((c) => !ordered.includes(c))];
