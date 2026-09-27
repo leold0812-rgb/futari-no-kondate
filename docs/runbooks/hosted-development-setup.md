@@ -180,9 +180,12 @@ node --env-file=.env.bootstrap.local scripts/nutrition/import-food-composition.m
 - ご飯の栄養は食品番号 `01088`（こめ［水稲めし］精白米 うるち米）を使う。取り込んだ版で番号が違う場合は Claude に伝える。
 - 取り込んだ後、アプリの「在庫 → 材料の設定 → 栄養の設定」で材料ごとに食品を選ぶと、その材料を使うレシピの栄養が自動で計算される。
 
-## J. 以降のGateで追加される手順
+## J. 記録とバックアップ（Gate 8）
 
-- Vercel Blob store（バックアップ、Gate 8）、`CRON_SECRET` → このファイルへ追記する
+- 体重の記録（`weight_records`）はAのmigration適用で使えるようになる。追加の設定は無い
+- 日次バックアップ（Vercel Cron → private Blob）は **Productionでだけ動く**。`CRON_SECRET` とBlob storeは `production-checklist.md` の3で設定する。Developmentでは登録しない
+- Developmentで手元にバックアップを取る・復元の手順は `backup-restore.md`
+- 本番導入は `production-checklist.md`
 
 ## 後片付け・漏えい時
 

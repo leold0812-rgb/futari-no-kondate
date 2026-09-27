@@ -42,9 +42,9 @@ Supabaseのproject URLとpublishable keyは各projectのConnect/API Keys画面�
 | `SUPABASE_SERVICE_ROLE_KEY` | 未登録（ローカルは`.env.local`） | Dev secret key（Sensitive） | Prod secret key（Sensitive） | ログイン（PIN検証・session発行）とバックアップで使う。server-onlyの`lib/supabase/admin.ts`だけが読む |
 | `OPENAI_API_KEY` | 未登録（ローカルは`.env.local`） | Dev用project key（Sensitive、任意） | Prod用project key（Sensitive、任意） | URL取り込みでJSON-LDが無いページをAIで読む時だけ使う。未設定でも他の機能は動く |
 | `OPENAI_IMPORT_MODEL` | 任意 | 任意 | 任意 | 秘密値ではない。既定 `gpt-5-mini` |
-| `CRON_SECRET` | 未登録 | 未登録 | 未登録 | バックアップCron実装時にProductionへ登録 |
+| `CRON_SECRET` | 未登録 | 未登録 | 16文字以上のランダム値（Sensitive） | バックアップCron（`/api/cron/backup`）の認証。CronはProductionでだけ動く |
 | `PIN_PEPPER` | 未登録（ローカルは`.env.local`） | Dev用の値（Sensitive） | Prod用の別の値（Sensitive） | PINハッシュと送信元HMACのpepper。32文字以上。変えると登録済みPINが無効になる |
-| `BLOB_READ_WRITE_TOKEN` | 未登録 | 未登録 | 未登録 | バックアップ実装時にprivate storeごとに登録 |
+| `BLOB_STORE_ID` / `BLOB_READ_WRITE_TOKEN` | 未登録 | 未登録 | private Blob storeをProductionだけに接続すると自動で入る | バックアップの保存先。storeは作成時にPrivateを選ぶ（後から変えられない）。手元での取り出しは`.env.backup.local`に置く（`docs/runbooks/backup-restore.md`） |
 
 未使用のサーバー秘密値は空値で登録せず、変数そのものを未登録にします。必要になった機能だけが遅延検証する設計です。
 

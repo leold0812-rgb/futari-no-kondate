@@ -251,6 +251,7 @@ jobs:
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY:-$PUBLISHABLE_KEY}"
             echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-$SECRET_KEY}"
             echo "PIN_PEPPER=$(openssl rand -hex 32)"
+            echo "CRON_SECRET=$(openssl rand -hex 24)"
             echo "E2E_PIN_1=$(shuf -i 100000-999999 -n 1)1"
             echo "E2E_PIN_2=$(shuf -i 100000-999999 -n 1)2"
           } >> "$GITHUB_ENV"
@@ -269,6 +270,10 @@ jobs:
 
       - name: E2E tests
         run: npm run e2e
+
+      # E2Eで作ったデータをバックアップ→空にする→復元し、内容が一致するかを確かめる（Gate 8 復元テスト）
+      - name: Backup restore round-trip
+        run: node scripts/backup/roundtrip-check.mts --project-ref local
 
       - name: Upload screenshots and report
         if: always()
