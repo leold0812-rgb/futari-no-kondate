@@ -63,7 +63,13 @@ export default async function FreeDayPage() {
       .filter((l) => l.recipe_id === r.id)
       .map((l) => ({ ingredientId: l.ingredient_id as string | null, name: l.raw_name as string, quantity: l.quantity === null ? null : Number(l.quantity), unit: l.unit as string | null })),
   }));
-  const candidates = recommendFreeDay(input, { today, stock: stockMap, useSoonIngredientIds: useSoon, servings: 2 });
+  const recommended = recommendFreeDay(input, { today, stock: stockMap, useSoonIngredientIds: useSoon, servings: 2 });
+  // 今日作った料理は、提案の上位から外れても（在庫を使い切った等）同じ一覧の先頭に残す。
+  // 同じ配列・同じkeyのまま並ぶので、押した直後の結果と初回評価の表示が消えない
+  const cookedExtra = input
+    .filter((r) => cookedToday.has(r.id) && !recommended.some((c) => c.recipeId === r.id))
+    .map((r) => ({ recipeId: r.id, name: r.name, score: 0, coverage: 0, missing: [] as string[], reasons: [] as string[] }));
+  const candidates = [...cookedExtra, ...recommended];
 
   return (
     <div className={styles.page}>
@@ -84,8 +90,12 @@ export default async function FreeDayPage() {
             <p className={styles.dishName}>
               <Link href={`/recipes/${c.recipeId}`}>{c.name}</Link>
             </p>
-            <p className={styles.muted}>{c.reasons.join("・")}</p>
-            <p className={styles.muted}>{c.missing.length === 0 ? "買い足しなし" : `買い足し：${c.missing.join("、")}`}</p>
+            {cookedToday.has(c.recipeId) ? null : (
+              <>
+                <p className={styles.muted}>{c.reasons.join("・")}</p>
+                <p className={styles.muted}>{c.missing.length === 0 ? "買い足しなし" : `買い足し：${c.missing.join("、")}`}</p>
+              </>
+            )}
             <CompleteButton
               targetId={c.recipeId}
               label="これを作った"
