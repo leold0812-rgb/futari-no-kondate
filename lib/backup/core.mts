@@ -9,6 +9,8 @@
  *   - private.pin_credentials / login_throttles（PINの派生値と試行記録。復元後はPINを設定し直す）
  *   - recipe_import_logs（取り込み回数の運用記録）
  *   - auth.users（Supabase Authが管理。復元先に同じ2人のアカウントが必要。IDが違う場合は対応表で置き換える）
+ * 復元で変わるもの:
+ *   - recommendation_runs.seq（採番し直す。順は保つ）、couple_spaces.updated_at（2人上限の仕組みが更新する。管理用の列）
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 

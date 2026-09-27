@@ -18,9 +18,19 @@ function fail(message: string): never {
   process.exit(1);
 }
 
-/** 比べられる形にする（seqは復元で採番し直すため、値ではなく計画ごとの順で比べる） */
+/**
+ * 比べられる形にする。
+ * - recommendation_runs.seq は復元で採番し直すため、値ではなく順で比べる
+ * - couple_spaces.updated_at は profiles を入れると2人上限の仕組み（private.enforce_couple_space_member_limit）が
+ *   更新するため復元時刻になる。表示・処理に使っていない管理用の列なので比べない
+ */
 function comparable(backup: BackupFile) {
   const tables = { ...backup.tables } as Record<string, Record<string, unknown>[]>;
+  tables.couple_spaces = tables.couple_spaces.map((row) => {
+    const copy = { ...row };
+    delete copy.updated_at;
+    return copy;
+  });
   const runs = [...tables.recommendation_runs].sort((a, b) => Number(a.seq) - Number(b.seq));
   tables.recommendation_runs = runs
     .map((row, order) => {
