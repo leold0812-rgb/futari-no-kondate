@@ -91,3 +91,5 @@
 1. hosted Supabaseの操作（migration適用・Auth設定・bootstrap実行・PIN設定）は手順書化してユーザーが実行する / Supabase CLIが未ログインで、DB password・secret keyなどの資格情報をClaudeが扱わない安全上のルールのため。
 2. 管理用メールは配送されない`.invalid`ドメイン（例 `member-1@futari-no-kondate.invalid`）を推奨値とする / RFC 6761の予約TLDで誤配送が起きない。hostedで拒否された場合の代替は手順書に記載。
 3. Gate 1.3にhostedでのsession発行確認（ADR 0001の未検証項目）を含める / 2人が実際にログインできることの実証になるため。手順書の最終ステップとして用意する。
+4. 管理スクリプトはhostedではDevelopment project（ref `jqkslfjdppwliugchwbm`）だけを許可し、ref をリポジトリに記載する / Codexレビュー（Critical）で「Productionを取り違えても通る」と指摘されたため。refは公開URLの一部で秘密値ではない。Productionの操作は本番導入チェックリストで別に扱う。
+5. Authユーザー作成が失敗してもEmail providerを一時的に有効化する回避策は採らない / ADR 0001と矛盾するため（Codexレビュー Important）。
