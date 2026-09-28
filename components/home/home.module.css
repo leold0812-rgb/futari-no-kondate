@@ -357,7 +357,12 @@
 }
 
 .meal[data-cooked="true"] {
+  opacity: 1;
+}
+
+.meal[data-cooked="true"] .mealImage {
   opacity: 0.62;
+  filter: grayscale(0.25);
 }
 
 .mealLink {
@@ -407,6 +412,43 @@
   color: var(--color-primary-strong);
   font-size: 0.69rem;
   font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .hero {
+    display: grid;
+    min-height: 0;
+    gap: 8px;
+  }
+
+  .heroCopy {
+    width: 100%;
+  }
+
+  .heroButton {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .heroArt {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    justify-self: end;
+    width: min(68%, 230px);
+    margin-top: -18px;
+  }
+
+  .howItWorks {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    white-space: normal;
+  }
+
+  .stepArrow {
+    display: none;
+  }
 }
 
 .useSoon {

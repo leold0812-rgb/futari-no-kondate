@@ -11,8 +11,9 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - 新規依存・画像外部送信なし。食材データ・認証・DB変更なし。
 - `npm run lint` 成功、`npm run typecheck` 成功。テストは未実行。
 - CodexレビューのP2（ボタン・小見出しの文字コントラスト）とP3（カード角丸・影の共通トークン不一致）を反映。ボタンを濃色化し、角丸・影をガイドラインへ揃えた。
-- PR #19: https://github.com/leold0812-rgb/futari-no-kondate/pull/19 。Vercel Previewはデプロイ成功。Preview固有URLはログイン画面が表示され、既存セッションを使ったログイン後画面の確認は未実施（PINは入力せず）。CIは作成直後に実行中。
-- lint / typecheck 再実行後にPRへpushする。テストは未実行。
+- Codex再レビューの追加指摘（200%文字拡大時のヒーロー・手順表示、調理済みカード文字のコントラスト）も修正。狭幅ではボタン折返し・イラスト下置き・手順縦並び、調理済みカードは写真のみ薄くする。
+- PR #19: https://github.com/leold0812-rgb/futari-no-kondate/pull/19 。Vercel Previewは最新コミットでデプロイ成功。Preview固有URLはログイン画面が表示され、既存セッションを使ったログイン後画面の確認は未実施（PINは入力せず）。最終コミットのCI完了待ち。
+- lint 成功、typecheck 成功（前回修正後に再実行）。今回の追加CSS変更でもlintと差分チェックを実行する。テストは未実行。
 
 ## PR #3 レビュー（2026-09-26）
 
