@@ -18,7 +18,7 @@ test.describe.serial("平日の献立と作った（Gate 7）", () => {
 
   test("献立を開き、副菜を差し替え、作ったを記録して初回評価をつける", async ({ page }) => {
     await login(page, MEMBER_1, PIN_1);
-    await expect(page.getByRole("heading", { name: /今週の献立（\d+つ残り）/ })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "今週の食卓" })).toBeVisible();
     await page.getByRole("listitem").filter({ hasText: /E2E/ }).first().getByRole("link").click();
     await expect(page).toHaveURL(/\/meals\//);
     await expect(page.getByText("ご飯 150g")).toBeVisible();
