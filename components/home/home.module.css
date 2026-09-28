@@ -189,8 +189,9 @@
   right: 10%;
   bottom: 18%;
   display: grid;
-  width: 68px;
-  height: 68px;
+  min-width: 68px;
+  min-height: 68px;
+  padding: 8px;
   place-content: center;
   transform: rotate(9deg);
   border: 1px dashed rgb(83 99 75 / 42%);

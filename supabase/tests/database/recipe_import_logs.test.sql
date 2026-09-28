@@ -72,7 +72,8 @@ reset role;
 
 -- AIの上限：同じspaceの今日のAI利用が20件あれば、AIの枠は予約できない（取り込み自体はできる）
 insert into public.recipe_import_logs (couple_space_id, created_by, source_host, method, outcome, created_at)
-select '10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000000b', 'x.example.com', 'AI', 'SUCCESS', now() - interval '2 hours'
+select '10000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00000000000b', 'x.example.com', 'AI', 'SUCCESS',
+       ((now() at time zone 'Asia/Tokyo')::date::timestamp + interval '12 hours') at time zone 'Asia/Tokyo'
 from generate_series(1, 20);
 
 set local role service_role;
