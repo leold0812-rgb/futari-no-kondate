@@ -15,7 +15,7 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - Codex最終レビューの指摘を反映：押下中の主ボタンも十分なコントラストを維持し、ヒーロー内の丸いメモは拡大文字に合わせて伸びる。
 - PR #19のCIで、刷新したホームの見出しに追随していない既存unit期待値2件と、日本時間0時に不安定になるURL取り込み上限テストを確認・修正。変更後CIで再確認する。
 - CIで刷新したホームに対する古いE2E期待値を修正後、献立一覧の確認範囲がホーム全体になっており、手順ガイド内のリストまで数えて10件になる問題を特定。確認対象を「今週の献立」領域に絞った。
-- PR #19: https://github.com/leold0812-rgb/futari-no-kondate/pull/19 。Vercel Previewは最新コミットでデプロイ成功。Preview固有URLはログイン画面が表示され、既存セッションを使ったログイン後画面の確認は未実施（PINは入力せず）。最終修正のCI確認待ち。
+- PR #19: https://github.com/leold0812-rgb/futari-no-kondate/pull/19 。最終コミット `cf224ca` のCIはlint/typecheck/test/build、DB/RLS、Auth（2構成）、E2Eの全ジョブが成功。Vercel Previewもデプロイ成功。Preview固有URLはログイン画面が表示され、既存セッションを使ったログイン後画面の確認は未実施（PINは入力せず）。PRはレビュー可能な状態で未マージ。
 - lint / typecheck / 差分チェックは今回の修正後に実行中。ローカルではテストを実行していない。CI上の失敗を見て期待値と時刻fixtureを直したため、PR CIで検証する。
 
 ## PR #3 レビュー（2026-09-26）
