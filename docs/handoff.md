@@ -1,6 +1,6 @@
 # Handoff
 
-更新日: 2026-09-28（Gate 0〜8とPR #7〜#17がmainへマージ済み。UI刷新PRを準備中）
+更新日: 2026-09-29（Gate 0〜8とPR #7〜#17がmainへマージ済み。UI刷新PR #19作成済み）
 
 v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](tasks/app-v1-plan.md)
 
@@ -10,7 +10,9 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - 写真未登録レシピと共通EmptyStateに自作SVGの料理イラストを追加し、共通ページ見出し・5タブナビ・背景にトマトとバター色のアクセントを追加した。
 - 新規依存・画像外部送信なし。食材データ・認証・DB変更なし。
 - `npm run lint` 成功、`npm run typecheck` 成功。テストは未実行。
-- 次：UI差分をCodexレビューし、PR Previewで375px幅を確認してからユーザーへ確認依頼。
+- CodexレビューのP2（ボタン・小見出しの文字コントラスト）とP3（カード角丸・影の共通トークン不一致）を反映。ボタンを濃色化し、角丸・影をガイドラインへ揃えた。
+- PR #19: https://github.com/leold0812-rgb/futari-no-kondate/pull/19 。Vercel Previewはデプロイ成功。Preview固有URLはログイン画面が表示され、既存セッションを使ったログイン後画面の確認は未実施（PINは入力せず）。CIは作成直後に実行中。
+- lint / typecheck 再実行後にPRへpushする。テストは未実行。
 
 ## PR #3 レビュー（2026-09-26）
 

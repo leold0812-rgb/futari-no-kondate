@@ -85,11 +85,11 @@
   padding: 23px 21px;
   isolation: isolate;
   border: 1px solid #e8d9b5;
-  border-radius: 28px;
+  border-radius: var(--radius-card);
   background:
     radial-gradient(ellipse at 87% 92%, rgb(231 184 91 / 20%), transparent 38%),
     linear-gradient(145deg, #fbf0d4 0%, #f7e8bf 60%, #f2dfab 100%);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-soft);
 }
 
 .hero::before {
@@ -123,7 +123,7 @@
 }
 
 .heroKicker span {
-  color: var(--color-tomato);
+  color: var(--color-caution-strong);
   font-size: 0.9rem;
 }
 
@@ -150,8 +150,8 @@
   margin-top: 15px;
   padding-inline: 16px;
   border-radius: 15px;
-  background: var(--color-tomato);
-  box-shadow: 0 5px 0 #a74c39, 0 9px 16px rgb(128 70 43 / 15%);
+  background: #a84736;
+  box-shadow: 0 4px 0 #843b2f, 0 7px 12px rgb(128 70 43 / 12%);
   color: #fffdf8;
   font-size: 0.93rem;
   white-space: nowrap;
@@ -367,7 +367,7 @@
   overflow: hidden;
   padding-bottom: 8px;
   border: 1px solid var(--color-border);
-  border-radius: 21px;
+  border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-soft);
   color: inherit;
