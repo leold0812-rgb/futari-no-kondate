@@ -12,9 +12,22 @@
 }
 
 .title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 1.5rem;
   line-height: 1.3;
   letter-spacing: 0.02em;
+}
+
+.title::before {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border: 2px solid var(--color-tomato);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px var(--color-tomato-soft);
+  content: "";
 }
 
 .action {

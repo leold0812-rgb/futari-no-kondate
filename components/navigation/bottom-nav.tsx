@@ -21,7 +21,7 @@ export function BottomNav() {
                 className={styles.link}
                 aria-current={active ? "page" : undefined}
               >
-                <NavIcon name={item.icon} />
+                <span className={styles.icon}><NavIcon name={item.icon} /></span>
                 <span className={styles.label}>{item.label}</span>
               </Link>
             </li>
