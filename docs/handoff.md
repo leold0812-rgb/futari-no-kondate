@@ -13,7 +13,8 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - Codexレビューの指摘で、計測を見出し表示と全体読込に分け、Safariでも手順リストと番号を読み上げられるよう修正。iPhone相当のE2Eスクリーンショットで案内の見た目を確認。
 - E2E CIのartifact uploadログがstep環境変数を表示するため、使い捨てのローカルAuth/PIN値をGitHub Actionsのmaskへ登録してから環境へ渡すよう変更。対象値はCIのローカルSupabase内だけで使い、hosted Supabase・GitHub Secretsは使わない。過去ログに出た値もこの実行専用の使い捨て値で、Development/Productionの資格情報ではない。
 - 実装確認：`npm run lint`、`npm run typecheck`、`npm test -- tests/unit/home-shell.test.tsx`（3件）、`git diff --check`が成功。mask修正後CIもlint/typecheck/test/build、DB/RLS、Auth（2構成）、E2E（26件）、Vercel Previewが成功。E2E upload stepの環境変数ログで`PIN_PEPPER`・`CRON_SECRET`・2人分のPINがすべて`***`と表示されることを確認。
-- 残作業：利用者のiPhone/hosted Previewで実速度・操作感を確認する（CIのChromiumはiPhone画面幅の代替）。PR #20はPR #19をbaseにしたDraftで、#19の後にマージする。
+- Preview確認：利用者のVercelログイン後、PR #20のhosted Previewでホームを表示。390×844のブラウザー表示幅で横スクロールなし（document width 390px）、ヒーロー・初回手順3つ・下部ナビを確認。これはiPhone実機ではなくブラウザーの表示幅エミュレーション。実機の通信速度・操作感は未確認。
+- 残作業：利用者のiPhone実機で速度と操作感を確認する。PR #20はPR #19をbaseにしており、#19の後にマージする。
 
 ## UI刷新（2026-09-28）
 
