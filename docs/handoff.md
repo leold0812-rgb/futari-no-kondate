@@ -15,7 +15,8 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - E2E CIのartifact uploadログがstep環境変数を表示するため、使い捨てのローカルAuth/PIN値をGitHub Actionsのmaskへ登録してから環境へ渡すよう変更。対象値はCIのローカルSupabase内だけで使い、hosted Supabase・GitHub Secretsは使わない。過去ログに出た値もこの実行専用の使い捨て値で、Development/Productionの資格情報ではない。
 - 実装確認：`npm run lint`、`npm run typecheck`、`npm test -- tests/unit/home-shell.test.tsx`（3件）、`git diff --check`が成功。mask修正後CIもlint/typecheck/test/build、DB/RLS、Auth（2構成）、E2E（26件）、Vercel Previewが成功。E2E upload stepの環境変数ログで`PIN_PEPPER`・`CRON_SECRET`・2人分のPINがすべて`***`と表示されることを確認。
 - Preview確認：利用者のVercelログイン後、PR #20のhosted Previewでホームを表示。390×844のブラウザー表示幅で横スクロールなし（document width 390px）、ヒーロー・初回手順3つ・下部ナビを確認。これはiPhone実機ではなくブラウザーの表示幅エミュレーション。実機の通信速度・操作感は未確認。
-- この追加調整のCIとPreview確認はpush後に行う。PR #20はPR #19をbaseにしており、#19の後にマージする。
+- 追加調整後CIはlint/typecheck/test/build、DB/RLS、Auth（2構成）、E2E（26件）、Vercel Previewが成功。最新E2EのiPhone 14相当390×844画像では、ヒーロー・初回手順3件・説明・下部5タブが1画面内に見え、横幅も390pxで収まることを確認した（Chromiumエミュレーションであり実機ではない）。短い高さ向けCSSも追加したが、667pxの画面は未確認。
+- 最新コミット固有のPreview URLは別オリジンでアプリのPINログイン状態が引き継がれず、画面確認はCIのE2E画像で実施。利用者の実機iPhoneで速度と操作感を確認する。PR #20はPR #19をbaseにしており、#19の後にマージする。
 
 ## UI刷新（2026-09-28）
 
