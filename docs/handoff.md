@@ -1,18 +1,19 @@
 # Handoff
 
-更新日: 2026-09-29（Gate 0〜8とPR #7〜#17がmainへマージ済み。UI刷新PR #19作成済み）
+更新日: 2026-09-29（Gate 0〜8とPR #7〜#17がmainへマージ済み。UI刷新PR #19、速度・初回利用改善PR #20を作成）
 
 v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](tasks/app-v1-plan.md)
 
-## 表示速度と初回利用の改善（2026-09-29、進行中）
+## 表示速度と初回利用の改善（2026-09-29、PR #20）
 
 - PR #19を土台に別ブランチ `codex/home-speed-ux` を作成。
-- PR #20の計測前CI（ローカルSupabase・iPhone相当Chromium）で、ホームの全体読込後に見出しが見えるまで献立なし158ms／献立あり208ms、TTFBは41ms／68ms。実装後の同条件の単回計測は474ms／454ms、TTFBは55ms／19ms。ランナーのばらつきと画像読込が混ざるため、この差を速度改善・悪化の証拠とは扱わない。計測値にユーザー情報は含めず、実機・hosted Previewの速度とも区別する。
+- PR #20の計測前CI（ローカルSupabase・iPhone相当Chromium）は、献立なし158ms／献立あり208ms、TTFB 41ms／68ms（当時はページ全体の`load`を待ってから見出しを確認する計測）。計測修正後の最新CIは、見出し表示473ms／444ms、全体`load` 474ms／445ms、TTFB 59ms／18ms。計測方法とランナーに差があるため前後比較には使わず、CI内の基準値として記録する。これは実機・hosted Previewの速度を示さない。
 - 認証中・画面遷移中の共通読み込み表示を追加し、ホームの買い物状態を1問い合わせにまとめて献立カード取得と並行する。献立未決定のホームには、レシピ追加・任意の在庫確認・献立決定の直接リンクを追加する。
 - DB migration・環境変数・新規依存の変更なし。
 - Codexレビューの指摘で、計測を見出し表示と全体読込に分け、Safariでも手順リストと番号を読み上げられるよう修正。iPhone相当のE2Eスクリーンショットで案内の見た目を確認。
-- ローカル確認：`npm run lint`、`npm run typecheck`、`npm test -- tests/unit/home-shell.test.tsx`（3件）、`git diff --check`が成功。実装後のCIはlint/typecheck/test/build、DB/RLS、Auth（2構成）、E2E（26件）が成功。
-- 現時点の未完了：レビュー指摘修正後のCI、hosted Previewでの実機速度確認。
+- E2E CIのartifact uploadログがstep環境変数を表示するため、使い捨てのローカルAuth/PIN値をGitHub Actionsのmaskへ登録してから環境へ渡すよう変更。対象値はCIのローカルSupabase内だけで使い、hosted Supabase・GitHub Secretsは使わない。過去ログに出た値もこの実行専用の使い捨て値で、Development/Productionの資格情報ではない。
+- 実装確認：`npm run lint`、`npm run typecheck`、`npm test -- tests/unit/home-shell.test.tsx`（3件）、`git diff --check`が成功。workflowのmask修正後CIは、push後に確認する。
+- 残作業：mask修正後CIの成功確認、利用者のiPhone/hosted Previewでの実速度・操作感確認。PR #20はPR #19をbaseにしたDraftで、#19の後にマージする。
 
 ## UI刷新（2026-09-28）
 
