@@ -7,11 +7,12 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 ## 表示速度と初回利用の改善（2026-09-29、進行中）
 
 - PR #19を土台に別ブランチ `codex/home-speed-ux` を作成。
-- PR #20のCI（ローカルSupabase・iPhone相当Chromium）で、ホームが見えるまで献立なし158ms／献立あり208ms、TTFBは41ms／68ms。26件のE2E成功。計測値にユーザー情報は含めない。この値は実機・hosted Previewの速度を示さない。
+- PR #20の計測前CI（ローカルSupabase・iPhone相当Chromium）で、ホームの全体読込後に見出しが見えるまで献立なし158ms／献立あり208ms、TTFBは41ms／68ms。実装後の同条件の単回計測は474ms／454ms、TTFBは55ms／19ms。ランナーのばらつきと画像読込が混ざるため、この差を速度改善・悪化の証拠とは扱わない。計測値にユーザー情報は含めず、実機・hosted Previewの速度とも区別する。
 - 認証中・画面遷移中の共通読み込み表示を追加し、ホームの買い物状態を1問い合わせにまとめて献立カード取得と並行する。献立未決定のホームには、レシピ追加・任意の在庫確認・献立決定の直接リンクを追加する。
 - DB migration・環境変数・新規依存の変更なし。
-- ローカル確認：`npm run lint`、`npm run typecheck`、`npm test -- tests/unit/home-shell.test.tsx`（3件）、`git diff --check`が成功。
-- 現時点の未完了：UI修正後のCI、レビュー、hosted Previewでの実機速度確認。
+- Codexレビューの指摘で、計測を見出し表示と全体読込に分け、Safariでも手順リストと番号を読み上げられるよう修正。iPhone相当のE2Eスクリーンショットで案内の見た目を確認。
+- ローカル確認：`npm run lint`、`npm run typecheck`、`npm test -- tests/unit/home-shell.test.tsx`（3件）、`git diff --check`が成功。実装後のCIはlint/typecheck/test/build、DB/RLS、Auth（2構成）、E2E（26件）が成功。
+- 現時点の未完了：レビュー指摘修正後のCI、hosted Previewでの実機速度確認。
 
 ## UI刷新（2026-09-28）
 

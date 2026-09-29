@@ -85,24 +85,24 @@ export function HomeView({ weekRange, status, meals, nextWeek, nextWeekStatus, j
           <section className={styles.quickStart} aria-labelledby="quick-start-title">
             <p className={styles.sectionEyebrow}>START HERE</p>
             <h2 id="quick-start-title" className={styles.quickStartTitle}>今週の準備は、ここから。</h2>
-            <ol className={styles.quickStartList}>
+            <ol className={styles.quickStartList} role="list">
               <li>
                 <Link href="/recipes/new" className={styles.quickStartLink}>
-                  <span className={styles.quickStartNumber} aria-hidden="true">1</span>
+                  <span className={styles.quickStartNumber}>1</span>
                   <span className={styles.quickStartCopy}><strong>レシピを入れる</strong><small>主菜を5品ほど。URLからも登録できます。</small></span>
                   <span className={styles.quickStartArrow} aria-hidden="true">→</span>
                 </Link>
               </li>
               <li>
                 <Link href="/inventory" className={styles.quickStartLink}>
-                  <span className={styles.quickStartNumber} aria-hidden="true">2</span>
+                  <span className={styles.quickStartNumber}>2</span>
                   <span className={styles.quickStartCopy}><strong>在庫を見ておく（任意）</strong><small>家にある食材だけ。あとで直せます。</small></span>
                   <span className={styles.quickStartArrow} aria-hidden="true">→</span>
                 </Link>
               </li>
               <li>
                 <Link href="/plan" className={styles.quickStartLink}>
-                  <span className={styles.quickStartNumber} aria-hidden="true">3</span>
+                  <span className={styles.quickStartNumber}>3</span>
                   <span className={styles.quickStartCopy}><strong>献立の候補を見る</strong><small>5品選んで、買い物リストまで準備。</small></span>
                   <span className={styles.quickStartArrow} aria-hidden="true">→</span>
                 </Link>
