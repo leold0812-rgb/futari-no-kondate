@@ -13,21 +13,23 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const nextWeek = addDays(week, 7);
   const [current, next] = await Promise.all([findWeeklyPlan(supabase, week), findWeeklyPlan(supabase, nextWeek)]);
 
-  const meals: HomeMeal[] = current && current.status !== "DRAFT" ? await getHomeMeals(supabase, current.id) : [];
-
-  // 買い物リストの準備が途中なら、ホームからも続きへ進めるようにする
-  let shoppingDraftWeek: string | null = null;
-  for (const [plan, w] of [
+  const plans = [
     [current, week],
     [next, nextWeek],
-  ] as const) {
-    if (!plan || plan.status === "DRAFT") continue;
-    const { data: list } = await supabase.from("shopping_lists").select("status").eq("weekly_plan_id", plan.id).maybeSingle();
-    if (!list || list.status === "DRAFT") {
-      shoppingDraftWeek = w;
-      break;
-    }
-  }
+  ] as const;
+  const shoppingDraftPromise = (async (): Promise<string | null> => {
+    const planIds = plans.flatMap(([plan]) => (plan && plan.status !== "DRAFT" ? [plan.id] : []));
+    if (planIds.length === 0) return null;
+    const { data: lists } = await supabase.from("shopping_lists").select("weekly_plan_id, status").in("weekly_plan_id", planIds);
+    // 買い物リストの準備が途中なら、今週を優先してホームから再開できるようにする
+    return plans.find(([plan]) =>
+      plan && plan.status !== "DRAFT" && !lists?.some((list) => list.weekly_plan_id === plan.id && list.status !== "DRAFT"),
+    )?.[1] ?? null;
+  })();
+  const [meals, shoppingDraftWeek]: [HomeMeal[], string | null] = await Promise.all([
+    current && current.status !== "DRAFT" ? getHomeMeals(supabase, current.id) : [],
+    shoppingDraftPromise,
+  ]);
 
   return (
     <HomeView

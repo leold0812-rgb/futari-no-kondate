@@ -7,9 +7,11 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 ## 表示速度と初回利用の改善（2026-09-29、進行中）
 
 - PR #19を土台に別ブランチ `codex/home-speed-ux` を作成。
-- まずCIのiPhone相当画面で、ホームが見えるまでの時間とTTFBを献立なし／献立ありで記録する。計測値にはユーザー情報を含めない。CIローカル環境の値であり、実機・hosted Previewの速度とは区別する。
-- 次に読み込み表示と初回利用の案内を改善する。DB migration・環境変数・新規依存は予定なし。
-- 現時点の未完了：計測CIの結果確認、UI実装、レビュー、最終検証。
+- PR #20のCI（ローカルSupabase・iPhone相当Chromium）で、ホームが見えるまで献立なし158ms／献立あり208ms、TTFBは41ms／68ms。26件のE2E成功。計測値にユーザー情報は含めない。この値は実機・hosted Previewの速度を示さない。
+- 認証中・画面遷移中の共通読み込み表示を追加し、ホームの買い物状態を1問い合わせにまとめて献立カード取得と並行する。献立未決定のホームには、レシピ追加・任意の在庫確認・献立決定の直接リンクを追加する。
+- DB migration・環境変数・新規依存の変更なし。
+- ローカル確認：`npm run lint`、`npm run typecheck`、`npm test -- tests/unit/home-shell.test.tsx`（3件）、`git diff --check`が成功。
+- 現時点の未完了：UI修正後のCI、レビュー、hosted Previewでの実機速度確認。
 
 ## UI刷新（2026-09-28）
 

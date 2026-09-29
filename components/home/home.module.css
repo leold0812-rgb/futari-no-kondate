@@ -212,54 +212,73 @@
   font-size: 1.2rem;
 }
 
-.howItWorks {
+.quickStart {
+  display: grid;
+  gap: 10px;
+}
+
+.quickStartTitle {
+  font-size: 1.18rem;
+  letter-spacing: -0.035em;
+}
+
+.quickStartList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quickStartLink {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 3px;
-  padding: 12px 13px;
+  gap: 12px;
+  min-height: 64px;
+  padding: 9px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   background: var(--color-surface);
   box-shadow: var(--shadow-soft);
-  color: #4a4b43;
-  font-size: clamp(0.65rem, 3vw, 0.77rem);
-  font-weight: 700;
-  white-space: nowrap;
+  text-decoration: none;
 }
 
-.howItWorks > span:not(.stepArrow) {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+.quickStartLink:active {
+  background: var(--color-primary-soft);
 }
 
-.stepDot {
+.quickStartNumber {
   display: grid;
-  width: 22px;
-  height: 22px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
-  background: var(--color-primary-soft);
-  color: var(--color-primary-strong);
-  font-size: 0.68rem;
-  font-style: normal;
-}
-
-.stepDotYellow {
   background: var(--color-butter-soft);
-  color: #705b1b;
+  color: var(--color-primary-strong);
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
-.stepDotCoral {
-  background: var(--color-tomato-soft);
-  color: #8f4938;
+.quickStartCopy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
 }
 
-.stepArrow {
-  color: #aaa293;
-  font-size: 0.8rem;
+.quickStartCopy strong {
+  font-size: 0.88rem;
+}
+
+.quickStartCopy small {
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+}
+
+.quickStartArrow {
+  color: var(--color-primary-strong);
+  font-size: 1rem;
 }
 
 .tip {
@@ -439,17 +458,6 @@
     width: min(68%, 230px);
     margin-top: -18px;
   }
-
-  .howItWorks {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 8px;
-    white-space: normal;
-  }
-
-  .stepArrow {
-    display: none;
-  }
 }
 
 .useSoon {
@@ -475,11 +483,5 @@
 
   .hero h2 {
     font-size: 2.15rem;
-  }
-
-  .howItWorks {
-    justify-content: center;
-    gap: 16px;
-    font-size: 0.82rem;
   }
 }
