@@ -10,6 +10,19 @@ export async function snap(page: Page, name: string) {
   await page.screenshot({ path: `test-results/screens/${name}.png`, fullPage: true });
 }
 
+/** CIの同じ環境で、ホームの表示時間を改善前後で比較する。利用者情報は出力しない。 */
+export async function measureHomeNavigation(page: Page, state: "empty" | "planned", heading: string) {
+  const started = performance.now();
+  await page.goto("/");
+  await expect(page.getByRole("heading", { level: 1, name: heading })).toBeVisible();
+  const visibleMs = Math.round(performance.now() - started);
+  const ttfbMs = await page.evaluate(() => {
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    return navigation ? Math.round(navigation.responseStart) : null;
+  });
+  console.info(`[home-perf] ${JSON.stringify({ state, visibleMs, ttfbMs })}`);
+}
+
 /**
  * ログインする。`stay: true` なら現在のログイン画面（next付きなど）のまま入力する。
  * 送信元単位の試行制限（1時間20回）に全テストで引っかからないよう、テストごとに別の送信元IPを名乗る
