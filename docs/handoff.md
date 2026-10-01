@@ -1,8 +1,22 @@
 # Handoff
 
-更新日: 2026-09-29（Gate 0〜8とPR #7〜#17がmainへマージ済み。UI刷新PR #19作成済み）
+更新日: 2026-09-29（Gate 0〜8とPR #7〜#17がmainへマージ済み。UI刷新PR #19、速度・初回利用改善PR #20を作成）
 
 v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](tasks/app-v1-plan.md)
+
+## 表示速度と初回利用の改善（2026-09-29、PR #20）
+
+- PR #19を土台に別ブランチ `codex/home-speed-ux` を作成。
+- 利用者の要望で、献立未決定ホームをスマートフォン1画面内に収める調整を追加。480px以下はイラストをカード内で本文と重ね、カードと間隔を圧縮。720px以下の短い画面向けにも追加の高さ調整を行い、手順リンクは46px以上を維持する。
+- PR #20の計測前CI（ローカルSupabase・iPhone相当Chromium）は、献立なし158ms／献立あり208ms、TTFB 41ms／68ms（当時はページ全体の`load`を待ってから見出しを確認する計測）。修正後の最新CIは、見出し表示624ms／443ms、全体`load` 626ms／445ms、TTFB 62ms／28ms。計測方法とランナーに差があるため前後比較には使わず、CI内の目安として記録する。これは実機・hosted Previewの速度を示さない。
+- 認証中・画面遷移中の共通読み込み表示を追加し、ホームの買い物状態を1問い合わせにまとめて献立カード取得と並行する。献立未決定のホームには、レシピ追加・任意の在庫確認・献立決定の直接リンクを追加する。
+- DB migration・環境変数・新規依存の変更なし。
+- Codexレビューの指摘で、計測を見出し表示と全体読込に分け、Safariでも手順リストと番号を読み上げられるよう修正。iPhone相当のE2Eスクリーンショットで案内の見た目を確認。
+- E2E CIのartifact uploadログがstep環境変数を表示するため、使い捨てのローカルAuth/PIN値をGitHub Actionsのmaskへ登録してから環境へ渡すよう変更。対象値はCIのローカルSupabase内だけで使い、hosted Supabase・GitHub Secretsは使わない。過去ログに出た値もこの実行専用の使い捨て値で、Development/Productionの資格情報ではない。
+- 実装確認：`npm run lint`、`npm run typecheck`、`npm test -- tests/unit/home-shell.test.tsx`（3件）、`git diff --check`が成功。mask修正後CIもlint/typecheck/test/build、DB/RLS、Auth（2構成）、E2E（26件）、Vercel Previewが成功。E2E upload stepの環境変数ログで`PIN_PEPPER`・`CRON_SECRET`・2人分のPINがすべて`***`と表示されることを確認。
+- Preview確認：利用者のVercelログイン後、PR #20のhosted Previewでホームを表示。390×844のブラウザー表示幅で横スクロールなし（document width 390px）、ヒーロー・初回手順3つ・下部ナビを確認。これはiPhone実機ではなくブラウザーの表示幅エミュレーション。実機の通信速度・操作感は未確認。
+- 追加調整後CIはlint/typecheck/test/build、DB/RLS、Auth（2構成）、E2E（26件）、Vercel Previewが成功。最新E2EのiPhone 14相当390×844画像では、ヒーロー・初回手順3件・説明・下部5タブが1画面内に見え、横幅も390pxで収まることを確認した（Chromiumエミュレーションであり実機ではない）。短い高さ向けCSSも追加したが、667pxの画面は未確認。
+- 最新コミット固有のPreview URLは別オリジンでアプリのPINログイン状態が引き継がれず、画面確認はCIのE2E画像で実施。利用者の実機iPhoneで速度と操作感を確認する。PR #20はPR #19をbaseにしており、#19の後にマージする。
 
 ## UI刷新（2026-09-28）
 

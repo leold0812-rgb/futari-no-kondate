@@ -246,14 +246,22 @@ jobs:
         run: |
           npx supabase status -o env > "$RUNNER_TEMP/supabase-local.env"
           set -a; . "$RUNNER_TEMP/supabase-local.env"; set +a
+          pin_pepper=$(openssl rand -hex 32)
+          cron_secret=$(openssl rand -hex 24)
+          e2e_pin_1="$(shuf -i 100000-999999 -n 1)1"
+          e2e_pin_2="$(shuf -i 100000-999999 -n 1)2"
+          echo "::add-mask::$pin_pepper"
+          echo "::add-mask::$cron_secret"
+          echo "::add-mask::$e2e_pin_1"
+          echo "::add-mask::$e2e_pin_2"
           {
             echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY:-$PUBLISHABLE_KEY}"
             echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-$SECRET_KEY}"
-            echo "PIN_PEPPER=$(openssl rand -hex 32)"
-            echo "CRON_SECRET=$(openssl rand -hex 24)"
-            echo "E2E_PIN_1=$(shuf -i 100000-999999 -n 1)1"
-            echo "E2E_PIN_2=$(shuf -i 100000-999999 -n 1)2"
+            echo "PIN_PEPPER=${pin_pepper}"
+            echo "CRON_SECRET=${cron_secret}"
+            echo "E2E_PIN_1=${e2e_pin_1}"
+            echo "E2E_PIN_2=${e2e_pin_2}"
           } >> "$GITHUB_ENV"
 
       - name: Bootstrap the two accounts and PINs

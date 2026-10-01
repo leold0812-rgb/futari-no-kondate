@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MEMBER_1, MEMBER_2, PIN_1, login, snap } from "./helpers";
+import { MEMBER_1, MEMBER_2, PIN_1, login, measureHomeNavigation, snap } from "./helpers";
 
 test.describe("ログイン（Gate 1.5 / 1.6）", () => {
   test("未ログインで開くとログイン画面になり、2人の名前を選べる", async ({ page }) => {
@@ -27,6 +27,7 @@ test.describe("ログイン（Gate 1.5 / 1.6）", () => {
     await page.getByRole("button", { name: "ログイン" }).click();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { level: 1, name: "今週、なに作ろう？" })).toBeVisible();
+    await measureHomeNavigation(page, "empty", "今週、なに作ろう？");
     await snap(page, "03-home");
   });
 
