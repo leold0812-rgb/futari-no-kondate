@@ -14,7 +14,7 @@ hosted Supabase・Vercelの秘密値はClaudeが扱えないため、すべて�
 - [ ] Production projectのref（20文字）を確認し、Developmentのref（`jqkslfjdppwliugchwbm`）と違うことを確かめる
 - [ ] migrationを適用する（`hosted-development-setup.md` A の `<dev-ref>` をProductionのrefにする。`db push --dry-run` で適用予定を確認してから）
 - [ ] Auth設定（B）：Email providerの設定、サインアップ無効、Site URL・Redirect URLsを本番URLにする
-- [ ] 管理用secret key（C）を **Production用に新しく** 作る（名前例 `local-admin-prod`）。`.env.production-admin.local` など別ファイルに置き、Developmentのファイルと混ぜない
+- [ ] 管理用secret key（C）を **Production用に新しく** 作る（名前例 `localadminprod`）。`.env.production-admin.local` など別ファイルに置き、Developmentのファイルと混ぜない
 - [ ] 2人のアカウント登録（D）。管理スクリプトは本番のrefでは止まるので、`--project-ref <prodのref> --production-ref <prodのref>` と2回書く
 - [ ] session発行の確認（E、`smoke-session.mts` も同様に `--production-ref`）
 - [ ] `PIN_PEPPER` を **Developmentと別の値** で作り（`openssl rand -hex 32`）、2人のPINを設定する（F）
@@ -25,7 +25,7 @@ hosted Supabase・Vercelの秘密値はClaudeが扱えないため、すべて�
 Dashboard → Settings → Environment Variables で **Environment: Production のみ**、秘密値は **Sensitive: ON**。
 
 - [ ] `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` がProduction projectの値
-- [ ] `SUPABASE_SERVICE_ROLE_KEY`：Production projectで新しく作ったsecret key（名前例 `vercel-production`）
+- [ ] `SUPABASE_SERVICE_ROLE_KEY`：Production projectで新しく作ったsecret key（名前例 `vercelproduction`）
 - [ ] `PIN_PEPPER`：2で作った本番用の値
 - [ ] `CRON_SECRET`：`openssl rand -hex 24` などで作った16文字以上の値
 - [ ] `OPENAI_API_KEY`（任意）：本番用のOpenAI project key。Usage limitを小さく設定する
