@@ -4,6 +4,7 @@
  * レシピの材料行（「玉ねぎ（中）」「★醤油」など）を材料マスタの名前へそろえ、在庫・買い物で合算できるようにする。
  * カテゴリと保存目安は新しい材料を作るときの初期値で、利用者があとから直せる。
  */
+import { normalizeUnit, parseAmount } from "@/lib/units";
 
 export const INGREDIENT_CATEGORIES = [
   "VEGETABLE",
@@ -122,6 +123,17 @@ export function splitIngredientLine(line: string): { rawName: string; amount: st
   if (!text) return null;
   const match =
     /^(.+?)(?:\s*[…:：.]{1,}\s*|\s+)([0-9½¼¾]|大さじ|小さじ|カップ|少々|適量|適宜|ひとつまみ|お好みで)(.*)$/.exec(text);
-  if (!match) return { rawName: text.slice(0, 60), amount: "" };
-  return { rawName: match[1].trim().slice(0, 60), amount: `${match[2]}${match[3]}`.trim() };
+  if (match) return { rawName: match[1].trim().slice(0, 60), amount: `${match[2]}${match[3]}`.trim() };
+  // 区切りなしで続く書き方：「醤油大さじ1」「砂糖小1」「鶏もも肉300g」「卵2個」
+  const joined =
+    /^(.+?)((?:大さじ|小さじ|カップ)\s*[0-9½¼¾].*)$/.exec(text) ??
+    /^(.+?)((?:大|小)[0-9][0-9./と]*)$/.exec(text) ??
+    /^([^0-9½¼¾]+?)([0-9½¼¾].*|少々|適量|適宜|ひとつまみ|お好みで)$/.exec(text);
+  if (joined && joined[1].trim()) {
+    // 「豚こま肉(2cm幅)」のような説明の数字を分量と取り違えないよう、知っている単位で読める場合だけ分ける
+    const parsed = parseAmount(joined[2]);
+    const readable = parsed.quantity === null ? parsed.unit !== null && normalizeUnit(parsed.unit) === null && !/[0-9]/.test(parsed.unit) : parsed.unit === null || normalizeUnit(parsed.unit) !== null;
+    if (readable) return { rawName: joined[1].trim().slice(0, 60), amount: joined[2].trim() };
+  }
+  return { rawName: text.slice(0, 60), amount: "" };
 }

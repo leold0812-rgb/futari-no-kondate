@@ -4,7 +4,7 @@ import { LinkButton } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMember } from "@/lib/auth/session";
 import { createRecipeAction, updateRecipeAction } from "../actions";
-import { importRecipeAction, saveUrlOnlyAction } from "../import-actions";
+import { importRecipeAction, importRecipeTextAction, saveUrlOnlyAction } from "../import-actions";
 
 export const metadata: Metadata = { title: "レシピを追加 | ふたりの献立" };
 
@@ -33,6 +33,7 @@ export default async function NewRecipePage({ searchParams }: PageProps<"/recipe
       <NewRecipeFlow
         initialUrl={initialUrl}
         importAction={importRecipeAction}
+        importTextAction={importRecipeTextAction}
         saveUrlOnlyAction={saveUrlOnlyAction}
         saveAction={replaceId ? updateRecipeAction.bind(null, replaceId) : createRecipeAction}
         submitLabel={replaceId ? "取り込んだ内容で保存する" : "保存する"}

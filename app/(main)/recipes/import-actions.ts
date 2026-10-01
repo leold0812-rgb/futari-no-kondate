@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireMember } from "@/lib/auth/session";
-import { importRecipeFromUrl, type ImportResult } from "@/lib/import/import-recipe";
+import { importRecipeFromText, importRecipeFromUrl, NO_RECIPE_IN_TEXT, type ImportResult } from "@/lib/import/import-recipe";
+import { parseRecipeText } from "@/lib/import/recipe-text";
 import { checkImportUrl } from "@/lib/import/url-safety";
 import { saveRecipe } from "@/lib/services/recipes";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -59,12 +60,69 @@ export async function importRecipeAction(url: string): Promise<ImportActionResul
   const finish = () =>
     admin.rpc("finish_recipe_import", {
       p_import_id: reservation.import_id,
-      p_method: result.method,
+      // 文章からAIなしで読んだ場合（TEXT）は、記録上は「AIを呼ばなかった」（NONE）として枠を返す
+      p_method: result.method === "TEXT" ? "NONE" : result.method,
       p_outcome: result.ok ? "SUCCESS" : "FAILED",
     });
   const { error: finishError } = await finish();
   if (finishError) await finish();
   return result;
+}
+
+const PASTED_HOST = "pasted-text";
+
+/**
+ * 貼り付けた文章（Instagramのキャプション・メモなど）からレシピを読み取る。
+ * 「材料」「作り方」の見出しがあればAIなしで読む（外部へ何も送らない）。読めないときだけ、上限の枠を取ってAIを使う。
+ */
+export async function importRecipeTextAction(text: string): Promise<ImportActionResult> {
+  const member = await requireMember();
+  const input = String(text ?? "").slice(0, 8000).trim();
+  const failed = (reason: string): ImportActionResult => ({ ok: false, method: "NONE", reason, title: null, sourceUrl: "", host: null });
+  if (input.length < 10) return failed("レシピの文章を貼り付けてください。");
+  const source = { sourceUrl: "", host: PASTED_HOST, fallbackName: "貼り付けたレシピ" };
+
+  if (parseRecipeText(input)) {
+    return importRecipeFromText(input, source, { aiAllowed: false, apiKey: null });
+  }
+  const apiKey = process.env.OPENAI_API_KEY?.trim() || null;
+  if (!apiKey || !/材料|ingredients/i.test(input)) {
+    const result = await importRecipeFromText(input, source, { aiAllowed: false, apiKey });
+    return result.ok ? result : failed(result.reason === NO_RECIPE_IN_TEXT ? "文章の中に「材料」の見出しが見つかりませんでした。材料と作り方が書かれた文章を貼り付けてください。" : result.reason);
+  }
+
+  const admin = createSupabaseAdminClient();
+  const { data: reservation, error } = await admin
+    .rpc("begin_recipe_import", {
+      p_couple_space_id: member.coupleSpaceId,
+      p_user_id: member.userId,
+      p_source_host: PASTED_HOST,
+      p_want_ai: true,
+    })
+    .single<{ import_id: string | null; allowed: boolean; ai_allowed: boolean }>();
+  if (error || !reservation) return failed("取り込みを開始できませんでした。少し待ってからもう一度お試しください。");
+  if (!reservation.allowed || !reservation.import_id) {
+    return failed("短い時間に取り込みが続いたため、一時的に止めています。1時間ほど待つか、手入力で続けてください。");
+  }
+  let result: ImportResult;
+  try {
+    result = await importRecipeFromText(input, source, {
+      aiAllowed: reservation.ai_allowed,
+      apiKey,
+      model: process.env.OPENAI_IMPORT_MODEL?.trim() || undefined,
+    });
+  } catch {
+    result = { ok: false, method: "NONE", reason: "文章を読み取れませんでした。", title: null, sourceUrl: "", host: null };
+  }
+  const finish = () =>
+    admin.rpc("finish_recipe_import", {
+      p_import_id: reservation.import_id,
+      p_method: result.method === "TEXT" ? "NONE" : result.method,
+      p_outcome: result.ok ? "SUCCESS" : "FAILED",
+    });
+  const { error: finishError } = await finish();
+  if (finishError) await finish();
+  return result.ok ? result : failed(result.reason);
 }
 
 /** 取り込めなかったURLを「URLのみ」のレシピとして保存する（あとで材料と作り方を入力・再取り込みできる） */

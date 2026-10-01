@@ -41,4 +41,36 @@ test.describe.serial("URL取り込み（Gate 3）", () => {
     await expect(page.getByRole("button", { name: "手入力で続ける" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByRole("button", { name: "URLだけ保存する" })).toHaveCount(0);
   });
+  test("投稿の文章を貼り付けると、材料の単位と数量が選ばれた状態で入力欄に入る", async ({ page }) => {
+    await login(page, MEMBER_1, PIN_1);
+    await page.goto("/recipes/new");
+    await page.getByText("投稿の文章を貼り付けて取り込む").click();
+    await page
+      .getByLabel(/Instagramの投稿の文章/)
+      .fill("E2E貼り付けの照り焼き\n\n【材料】2人分\n・鶏もも肉300g\n・醤油 大2\n・卵 1/2個\n・塩 少々\n\n【作り方】\n① 鶏肉を焼く\n② たれをからめる\n\n#レシピ");
+    await page.getByRole("button", { name: "文章から取り込む" }).click();
+
+    await expect(page.getByText("文章からレシピを読み取りました")).toBeVisible();
+    await expect(page.getByLabel("料理名（必須）")).toHaveValue("E2E貼り付けの照り焼き");
+    await expect(page.getByLabel("1行目の材料名")).toHaveValue("鶏もも肉");
+    await expect(page.getByLabel("1行目の単位")).toHaveValue("g");
+    await expect(page.getByLabel("1行目の数量")).toHaveValue("300");
+    await expect(page.getByLabel("2行目の単位")).toHaveValue("大さじ");
+    await expect(page.getByLabel("2行目の数量")).toHaveValue("2");
+    await expect(page.getByLabel("3行目の単位")).toHaveValue("個");
+    await expect(page.getByLabel("3行目の数量")).toHaveValue("0.5");
+    await expect(page.getByLabel("4行目の単位")).toHaveValue("少々");
+    await expect(page.getByLabel("4行目の数量")).toBeDisabled();
+    await snap(page, "22-import-text");
+    // 保存はしない（後続の献立・買い物のテストの候補を変えないため）
+  });
+
+  test("レシピの書かれていない文章は、理由を示して取り込まない", async ({ page }) => {
+    await login(page, MEMBER_1, PIN_1);
+    await page.goto("/recipes/new");
+    await page.getByText("投稿の文章を貼り付けて取り込む").click();
+    await page.getByLabel(/Instagramの投稿の文章/).fill("「動画」とコメントで受け取れます。ご案内をDMでお送りします。");
+    await page.getByRole("button", { name: "文章から取り込む" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "レシピを読み取れませんでした" })).toContainText("「材料」の見出しが見つかりませんでした");
+  });
 });
