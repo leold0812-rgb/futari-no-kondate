@@ -186,6 +186,7 @@ export type ParsedAmount = { quantity: number | null; unit: string | null };
 /**
  * 分量の文字列を数量と単位へ分ける（URL取り込み・手入力の補助）。
  * 例: "200g" → 200 g、"大さじ1と1/2" → 1.5 大さじ、"1/2個" → 0.5 個、"少々" → null 少々、"2〜3個" → 2 個（下限）
+ *     "大1" → 1 大さじ、"小1/2" → 0.5 小さじ（レシピの略記）、"1片(10g)" → 1 片、"1/2個分" → 0.5 個
  * 解釈できない場合は quantity=null、unit=元の文字列（空ならnull）。
  */
 export function parseAmount(raw: string | null | undefined): ParsedAmount {
@@ -203,18 +204,25 @@ export function parseAmount(raw: string | null | undefined): ParsedAmount {
   if ((UNQUANTIFIED_WORDS as readonly string[]).includes(text)) return { quantity: null, unit: text };
 
   // 前置単位（大さじ・小さじ・カップ）
-  const prefixed = new RegExp(`^(大さじ|小さじ|大匙|小匙|カップ)${NUMBER_PATTERN}$`).exec(text);
+  const prefixed = new RegExp(`^(大さじ|小さじ|大匙|小匙|カップ)${NUMBER_PATTERN}(?:杯)?$`).exec(text);
   if (prefixed) {
     const quantity = parseNumberText(prefixed[2]);
     return { quantity, unit: normalizeUnit(prefixed[1]) };
+  }
+  // レシピの略記「大1」「小1/2」（数字で終わる場合だけ。「大2個」は大きめ2個の意味なので扱わない）
+  const shorthand = new RegExp(`^(大|小)${NUMBER_PATTERN}$`).exec(text);
+  if (shorthand) {
+    return { quantity: parseNumberText(shorthand[2]), unit: shorthand[1] === "大" ? "大さじ" : "小さじ" };
   }
   // 数値＋後置単位
   const suffixed = new RegExp(`^${NUMBER_PATTERN}(.*)$`).exec(text);
   if (suffixed) {
     const quantity = parseNumberText(suffixed[1]);
-    const unitText = suffixed[2].replace(/^[(（].*[)）]$/, "");
+    // 「1片(10g)」の補足や「1/2個分」の「分」は単位に含めない
+    const unitText = suffixed[2].replace(/[(（].*[)）]$/, "");
     if (!unitText) return { quantity, unit: null };
-    return { quantity, unit: normalizeUnit(unitText) ?? unitText };
+    const known = normalizeUnit(unitText) ?? (unitText.endsWith("分") ? normalizeUnit(unitText.slice(0, -1)) : null);
+    return { quantity, unit: known ?? unitText };
   }
   return { quantity: null, unit: text };
 }

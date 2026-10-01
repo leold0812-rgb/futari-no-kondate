@@ -120,3 +120,20 @@ describe("分量文字列の解析", () => {
     expect(parseAmount("")).toEqual({ quantity: null, unit: null });
   });
 });
+
+describe("parseAmount（略記・補足）", () => {
+  it.each([
+    ["大1", 1, "大さじ"],
+    ["小1/2", 0.5, "小さじ"],
+    ["大さじ2杯", 2, "大さじ"],
+    ["1片(10g)", 1, "片"],
+    ["1/2個分", 0.5, "個"],
+    ["1/2本分", 0.5, "本"],
+  ])("%s → %s %s", (input, quantity, unit) => {
+    expect(parseAmount(input)).toEqual({ quantity, unit });
+  });
+
+  it("「大2個」は大きめ2個の意味かもしれないので、大さじとして読まない", () => {
+    expect(parseAmount("大2個").unit).not.toBe("大さじ");
+  });
+});

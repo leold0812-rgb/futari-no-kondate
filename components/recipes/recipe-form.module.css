@@ -105,12 +105,14 @@
 
 .rowFields {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 7.5rem;
   gap: 8px;
 }
 
-.amount {
-  min-width: 0;
+/* 数量（選ぶ／入力）と単位を横に並べる */
+.amountFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
 }
 
 .rowActions {
