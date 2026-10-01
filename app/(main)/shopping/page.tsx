@@ -8,8 +8,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { requireMember } from "@/lib/auth/session";
 import { addDays, tokyoWeekStart } from "@/lib/dates";
-import { getShoppingListForPlan, type ShoppingListView } from "@/lib/services/shopping";
-import { findWeeklyPlan } from "@/lib/services/weekly-plan";
+import { getShoppingListsForPlans, type ShoppingListView } from "@/lib/services/shopping";
+import { findWeeklyPlans } from "@/lib/services/weekly-plan";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { addManualItemAction, setPurchasedAction } from "./actions";
 
@@ -24,14 +24,22 @@ export default async function ShoppingPage({ searchParams }: PageProps<"/shoppin
   const lists: { week: string; label: string; list: ShoppingListView }[] = [];
   let draftWeek: string | null = null;
   let loadFailed = false;
+  // 2週分をまとめて読む（計画を1往復、リストと項目を1往復）
+  const plans = await findWeeklyPlans(supabase, weeks);
+  const confirmed = weeks.flatMap((w) => {
+    const plan = plans.get(w);
+    return plan && plan.status !== "DRAFT" ? [{ week: w, planId: plan.id }] : [];
+  });
+  const loaded = await getShoppingListsForPlans(
+    supabase,
+    confirmed.map((c) => c.planId),
+  ).catch(() => {
+    loadFailed = true;
+    return new Map<string, ShoppingListView>();
+  });
   for (const [index, w] of weeks.entries()) {
-    const plan = await findWeeklyPlan(supabase, w);
-    if (!plan || plan.status === "DRAFT") continue;
-    const loaded = await getShoppingListForPlan(supabase, plan.id)
-      .then((value) => ({ ok: true as const, value }))
-      .catch(() => ({ ok: false as const, value: null }));
-    if (!loaded.ok) loadFailed = true;
-    const list = loaded.value;
+    const planId = confirmed.find((c) => c.week === w)?.planId;
+    const list = planId ? loaded.get(planId) : undefined;
     if (!list) continue;
     if (list.status === "DRAFT") draftWeek ??= w;
     else lists.push({ week: w, label: index === 0 ? "今週" : "来週", list });

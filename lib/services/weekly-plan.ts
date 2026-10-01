@@ -64,14 +64,21 @@ export async function findWeeklyPlan(supabase: SupabaseClient, weekStart: string
   return data ? { id: data.id as string, status: data.status as PlanStatus } : null;
 }
 
-export async function getWeeklyPlan(supabase: SupabaseClient, planId: string): Promise<WeeklyPlanView | null> {
-  const { data: plan } = await supabase.from("weekly_plans").select("id, week_start, status, version").eq("id", planId).maybeSingle();
-  if (!plan) return null;
+/** 複数の週の計画を1往復で探す（週の月曜 → 計画。無い週は入らない） */
+export async function findWeeklyPlans(supabase: SupabaseClient, weekStarts: string[]): Promise<Map<string, { id: string; status: PlanStatus }>> {
+  const { data } = await supabase.from("weekly_plans").select("id, status, week_start").in("week_start", weekStarts);
+  return new Map((data ?? []).map((p) => [p.week_start as string, { id: p.id as string, status: p.status as PlanStatus }]));
+}
 
-  const [{ data: run }, { data: sets }] = await Promise.all([
+export async function getWeeklyPlan(supabase: SupabaseClient, planId: string): Promise<WeeklyPlanView | null> {
+  // 計画・最新の推薦（候補ごと）・献立セットを1往復で読む
+  const [{ data: plan }, { data: run }, { data: sets }] = await Promise.all([
+    supabase.from("weekly_plans").select("id, week_start, status, version").eq("id", planId).maybeSingle(),
     supabase
       .from("recommendation_runs")
-      .select("id, notes")
+      .select(
+        "id, notes, recommendation_candidates(id, recipe_id, position, score, score_breakdown, notes, manual, decision, decided_at, recipes(name, image_path, cooking_minutes, tags))",
+      )
       .eq("weekly_plan_id", planId)
       .order("seq", { ascending: false })
       .limit(1)
@@ -83,22 +90,22 @@ export async function getWeeklyPlan(supabase: SupabaseClient, planId: string): P
       .order("position"),
   ]);
 
+  if (!plan) return null;
+
   let candidates: CandidateView[] = [];
   if (run) {
-    const { data: rows } = await supabase
-      .from("recommendation_candidates")
-      .select("id, recipe_id, position, score, score_breakdown, notes, manual, decision, decided_at, recipes(name, image_path, cooking_minutes, tags)")
-      .eq("run_id", run.id)
-      .order("position");
+    const rows = [...((run.recommendation_candidates as Record<string, unknown>[] | null) ?? [])].sort(
+      (a, b) => Number(a.position) - Number(b.position),
+    );
     const recipeOf = (row: Record<string, unknown>) =>
       (Array.isArray(row.recipes) ? row.recipes[0] : row.recipes) as
         | { name: string; image_path: string | null; cooking_minutes: number | null; tags: string[] }
         | null;
     const images = await signImagePaths(
       supabase,
-      (rows ?? []).map((row) => recipeOf(row)?.image_path ?? null),
+      rows.map((row) => recipeOf(row)?.image_path ?? null),
     );
-    candidates = (rows ?? []).map((row) => {
+    candidates = rows.map((row) => {
       const recipe = recipeOf(row);
       return {
         id: row.id as string,
@@ -124,7 +131,7 @@ export async function getWeeklyPlan(supabase: SupabaseClient, planId: string): P
     status: plan.status as PlanStatus,
     version: plan.version as number,
     runId: (run?.id as string | undefined) ?? null,
-    runNotes: (run?.notes as string[] | undefined) ?? [],
+    runNotes: (run?.notes as string[] | null | undefined) ?? [],
     candidates,
     mealSets: (sets ?? []).map((s) => ({
       id: s.id as string,

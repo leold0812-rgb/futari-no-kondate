@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { consumeLocalWrite } from "@/lib/realtime/local-write";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 /**
@@ -22,7 +23,11 @@ export function RealtimeRefresh({ tables, coupleSpaceId }: { tables: string[]; c
     let timer: ReturnType<typeof setTimeout> | undefined;
     const refresh = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => router.refresh(), 300);
+      timer = setTimeout(() => {
+        // 自分の保存の直後に届いた通知は、保存の完了時にすでに読み直しているので省く
+        if (consumeLocalWrite()) return;
+        router.refresh();
+      }, 300);
     };
     const channel = supabase.channel(`space-${coupleSpaceId}-${key}`);
     for (const table of key.split(",")) {
