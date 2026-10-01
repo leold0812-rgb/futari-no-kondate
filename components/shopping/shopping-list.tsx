@@ -3,6 +3,7 @@
 import { useOptimistic, useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
 import { INGREDIENT_CATEGORY_LABELS, type IngredientCategory } from "@/lib/ingredients";
+import { clearLocalWrite, markLocalWrite } from "@/lib/realtime/local-write";
 import { describeAmount } from "@/lib/shopping/aggregate";
 import type { ShoppingItemView } from "@/lib/services/shopping";
 import styles from "./shopping.module.css";
@@ -28,8 +29,12 @@ export function ShoppingList({ items, categoryOrder, setPurchasedAction }: Props
     setError(null);
     startTransition(async () => {
       setOptimistic({ id: item.id, purchased: !item.purchased });
+      markLocalWrite();
       const result = await setPurchasedAction(item.id, !item.purchased).catch(() => ({ error: "通信に失敗しました。" }));
-      if (result.error) setError(`${result.error}（「${item.name}」は変わっていません）`);
+      if (result.error) {
+        clearLocalWrite();
+        setError(`${result.error}（「${item.name}」は変わっていません）`);
+      }
     });
   }
 

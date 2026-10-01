@@ -226,55 +226,71 @@ export async function prepareShoppingForPlan(supabase: SupabaseClient, planId: s
   return listId as string;
 }
 
-/** 週の計画の買い物リスト。まだ無ければnull。読み込みに失敗した場合は例外（「無い」と区別する） */
-export async function getShoppingListForPlan(supabase: SupabaseClient, planId: string): Promise<ShoppingListView | null> {
-  const { data: list, error } = await supabase.from("shopping_lists").select("id, weekly_plan_id, status").eq("weekly_plan_id", planId).maybeSingle();
-  if (error) throw new Error(`買い物リストを読み込めませんでした: ${error.message}`);
-  if (!list) return null;
-  return getShoppingList(supabase, list.id as string);
-}
+const SHOPPING_ITEM_COLUMNS =
+  "id, ingredient_id, name, category, required_quantity, inventory_quantity, buy_quantity, unit, source, recipe_names, home_checked, purchased_at, position";
 
-export async function getShoppingList(supabase: SupabaseClient, listId: string): Promise<ShoppingListView | null> {
-  const [{ data: list, error: listError }, { data: items, error: itemsError }, { data: orders, error: ordersError }] = await Promise.all([
-    supabase.from("shopping_lists").select("id, weekly_plan_id, status").eq("id", listId).maybeSingle(),
-    supabase
-      .from("shopping_items")
-      .select(
-        "id, ingredient_id, name, category, required_quantity, inventory_quantity, buy_quantity, unit, source, recipe_names, home_checked, purchased_at, position",
-      )
-      .eq("shopping_list_id", listId)
-      .order("position"),
-    supabase.from("shopping_category_orders").select("category, position").order("position"),
-  ]);
-  // 項目を読めないまま空として表示・確定させない
-  if (listError || itemsError || ordersError) {
-    throw new Error(`買い物リストを読み込めませんでした: ${(listError ?? itemsError ?? ordersError)!.message}`);
-  }
-  if (!list) return null;
-  const ordered = (orders ?? []).map((o) => o.category as IngredientCategory);
-  const categoryOrder = [...ordered, ...INGREDIENT_CATEGORIES.filter((c) => !ordered.includes(c))];
+type ShoppingItemRow = Record<string, unknown>;
+
+function toShoppingListView(
+  list: { id: unknown; weekly_plan_id: unknown; status: unknown },
+  items: ShoppingItemRow[],
+  categoryOrder: IngredientCategory[],
+): ShoppingListView {
   const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
   return {
     id: list.id as string,
     planId: list.weekly_plan_id as string | null,
     status: list.status as "DRAFT" | "CONFIRMED",
     categoryOrder,
-    items: (items ?? []).map((i) => ({
-      id: i.id as string,
-      ingredientId: i.ingredient_id as string | null,
-      name: i.name as string,
-      category: i.category as IngredientCategory,
-      required: num(i.required_quantity),
-      inStock: num(i.inventory_quantity),
-      toBuy: num(i.buy_quantity),
-      unit: i.unit as string | null,
-      group: i.buy_quantity === null && i.required_quantity === null ? "none" : unitGroup(i.unit),
-      source: i.source as ShoppingItemView["source"],
-      recipeNames: (i.recipe_names as string[]) ?? [],
-      homeChecked: Boolean(i.home_checked),
-      purchased: Boolean(i.purchased_at),
-    })),
+    items: [...items]
+      .sort((a, b) => Number(a.position) - Number(b.position))
+      .map((i) => ({
+        id: i.id as string,
+        ingredientId: i.ingredient_id as string | null,
+        name: i.name as string,
+        category: i.category as IngredientCategory,
+        required: num(i.required_quantity),
+        inStock: num(i.inventory_quantity),
+        toBuy: num(i.buy_quantity),
+        unit: i.unit as string | null,
+        group: i.buy_quantity === null && i.required_quantity === null ? "none" : unitGroup(i.unit as string | null),
+        source: i.source as ShoppingItemView["source"],
+        recipeNames: (i.recipe_names as string[]) ?? [],
+        homeChecked: Boolean(i.home_checked),
+        purchased: Boolean(i.purchased_at),
+      })),
   };
+}
+
+/**
+ * 複数の週の計画の買い物リストを、項目・カテゴリ順ごと1往復で読む（計画ID → リスト。無い計画は入らない）。
+ * 読み込みに失敗した場合は例外（「無い」と区別し、空として表示・確定させない）
+ */
+export async function getShoppingListsForPlans(supabase: SupabaseClient, planIds: string[]): Promise<Map<string, ShoppingListView>> {
+  const result = new Map<string, ShoppingListView>();
+  if (planIds.length === 0) return result;
+  const [{ data: lists, error: listError }, { data: orders, error: ordersError }] = await Promise.all([
+    supabase
+      .from("shopping_lists")
+      .select(`id, weekly_plan_id, status, shopping_items(${SHOPPING_ITEM_COLUMNS})`)
+      .in("weekly_plan_id", planIds),
+    supabase.from("shopping_category_orders").select("category, position").order("position"),
+  ]);
+  if (listError || ordersError) {
+    throw new Error(`買い物リストを読み込めませんでした: ${(listError ?? ordersError)!.message}`);
+  }
+  const ordered = (orders ?? []).map((o) => o.category as IngredientCategory);
+  const categoryOrder = [...ordered, ...INGREDIENT_CATEGORIES.filter((c) => !ordered.includes(c))];
+  for (const list of lists ?? []) {
+    const items = (list.shopping_items as ShoppingItemRow[] | null) ?? [];
+    result.set(list.weekly_plan_id as string, toShoppingListView(list, items, categoryOrder));
+  }
+  return result;
+}
+
+/** 週の計画の買い物リスト。まだ無ければnull。読み込みに失敗した場合は例外（「無い」と区別する） */
+export async function getShoppingListForPlan(supabase: SupabaseClient, planId: string): Promise<ShoppingListView | null> {
+  return (await getShoppingListsForPlans(supabase, [planId])).get(planId) ?? null;
 }
 
 /** 保険食材の候補（在庫・リストにある材料を除く） */
