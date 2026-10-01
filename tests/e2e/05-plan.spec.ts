@@ -9,8 +9,8 @@ test.describe.serial("週間計画（Gate 5）", () => {
 
   test("候補を1枚ずつ選び、1つ戻して、5品で確定できる", async ({ page }) => {
     await login(page, MEMBER_1, PIN_1);
-    await expect(page.getByText("今週の献立はまだ決まっていません")).toBeVisible();
-    await page.getByRole("link", { name: "今週の献立を決める" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "今週、なに作ろう？" })).toBeVisible();
+    await page.getByRole("link", { name: "献立を決める" }).click();
 
     await expect(page.getByText(/作る：0 \/ 5品/)).toBeVisible({ timeout: 20_000 });
     await snap(page, "40-plan-deck");
@@ -43,13 +43,15 @@ test.describe.serial("週間計画（Gate 5）", () => {
     // 確定すると副菜・汁物と買い物リストの下書きが用意され、買い物の準備画面へ進む（Gate 6）
     await expect(page.getByText("献立を決めました。副菜・汁物と買い物リストを用意しました。")).toBeVisible();
     await page.goto("/");
-    await expect(page.getByRole("heading", { name: "今週の献立（5つ残り）" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "今週の食卓" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "今週の献立" }).getByRole("listitem")).toHaveCount(5);
     await snap(page, "42-home-planned");
   });
 
   test("もう1人のホームにも決まった献立が出て、計画画面は決定済みになる", async ({ page }) => {
     await login(page, MEMBER_2, PIN_2);
-    await expect(page.getByRole("heading", { name: "今週の献立（5つ残り）" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "今週の食卓" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "今週の献立" }).getByRole("listitem")).toHaveCount(5);
     await page.goto("/plan");
     await expect(page.getByText("この週の献立は決定済みです")).toBeVisible();
     await expect(page.getByRole("link", { name: "来週の献立を決める" })).toHaveCount(0);

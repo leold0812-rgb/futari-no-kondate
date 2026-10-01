@@ -26,7 +26,7 @@ test.describe("ログイン（Gate 1.5 / 1.6）", () => {
     await page.getByLabel(`${MEMBER_1}さんのPIN`).fill(PIN_1);
     await page.getByRole("button", { name: "ログイン" }).click();
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { level: 1, name: "ホーム" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: "今週、なに作ろう？" })).toBeVisible();
     await snap(page, "03-home");
   });
 
