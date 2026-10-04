@@ -13,6 +13,8 @@ describe("ホームの空状態と下部タブ", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "今週、なに作ろう？" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "献立を決める" })).toHaveAttribute("href", "/plan");
+    expect(screen.getByRole("link", { name: /レシピを入れる/ })).toHaveAttribute("href", "/recipes/new");
+    expect(screen.getByRole("link", { name: /在庫を見ておく/ })).toHaveAttribute("href", "/inventory");
     expect(screen.queryByRole("link", { name: "来週の献立を決める" })).not.toBeInTheDocument();
   });
 
