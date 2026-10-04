@@ -4,6 +4,14 @@
 
 v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](tasks/app-v1-plan.md)
 
+## 利用者の3つの要望への対応（2026-10-01）
+
+- **遅い**：PR #21（マージ済み）でVercelの関数を東京（hnd1）へ。PR #22（#20の上）で買い物・献立の読み込みをまとめ、購入チェック後の二重の読み直しをなくした（`lib/realtime/local-write.ts`）。
+- **材料の入力**：`components/recipes/recipe-form.tsx` の材料行を「数量（選ぶ／入力）＋単位（選ぶ）」に変更。選択肢は `lib/units/amount-choices.ts`。読み取りの強化は `lib/units/index.ts`（parseAmount）と `lib/ingredients/index.ts`（splitIngredientLine）。
+- **Instagram**：`lib/import/instagram.ts`（埋め込み用ページから文章を取得）、`lib/import/recipe-text.ts`（AIなしで「材料」「作り方」を読む）、`importRecipeFromText` / `importRecipeTextAction`（貼り付け）。利用者が試した投稿は文章にレシピが無く（動画のみ）、その場合は理由を表示する。
+- テスト：unit 432件（`amount-choices`・`recipe-text`・`local-write` ほか）、E2E `02-recipes`（単位・数量の選択）・`03-import`（貼り付け）。DB変更・環境変数の変更なし。
+- 未対応：在庫の手動追加・買い物の手動追加の分量欄は従来の1欄のまま（同じ部品へ寄せるのは次の候補）。AIでの読み取りは `OPENAI_API_KEY`（手順書H）が未登録。
+
 ## 表示速度と初回利用の改善（2026-09-29、PR #20）
 
 - PR #19を土台に別ブランチ `codex/home-speed-ux` を作成。

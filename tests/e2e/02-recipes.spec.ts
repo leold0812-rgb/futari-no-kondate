@@ -20,11 +20,13 @@ test.describe.serial("レシピ（Gate 2）", () => {
     await page.getByLabel("料理名（必須）").fill("E2E照り焼き");
     await page.getByLabel("調理時間（分）").fill("20");
     await page.getByLabel("1行目の材料名").fill("鶏もも肉");
-    await page.getByLabel("1行目の分量").fill("300g");
+    await page.getByLabel("1行目の単位").selectOption("g");
+    await page.getByLabel("1行目の数量").fill("300");
     await page.getByLabel("主な材料").first().check();
     await page.getByRole("button", { name: "＋ 材料を追加" }).click();
     await page.getByLabel("2行目の材料名").fill("醤油");
-    await page.getByLabel("2行目の分量").fill("大さじ2");
+    await page.getByLabel("2行目の単位").selectOption("大さじ");
+    await page.getByLabel("2行目の数量").selectOption("2");
     await page.getByLabel("手順（1行に1つ）").fill("1. 鶏肉を皮目から焼く\n2. タレを絡める");
     await page.getByLabel("高タンパク").check();
     await page.getByLabel("写真を選ぶ（任意）").setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: PNG_1X1 });

@@ -17,7 +17,8 @@ import {
   type MainCategory,
 } from "@/lib/recipes/constants";
 import { splitIngredientLine } from "@/lib/ingredients";
-import { formatQuantity, parseAmount } from "@/lib/units";
+import { parseAmount } from "@/lib/units";
+import { canonicalUnit, quantityChoices, quantityForUnit, quantityLabel, quantityMode, unitLabel, unitOptions } from "@/lib/units/amount-choices";
 import styles from "./recipe-form.module.css";
 
 export type RecipeFormState = { errors?: string[] };
@@ -59,7 +60,16 @@ export const EMPTY_RECIPE: RecipeFormValues = {
   nutrition: { energyKcal: null, proteinG: null, fatG: null, carbsG: null },
 };
 
-type IngredientRow = { key: number; rawName: string; amount: string; note: string; isMain: boolean };
+/** quantity は数字の文字列（数量なしは空）、unit は単位（未選択は空） */
+type IngredientRow = { key: number; rawName: string; quantity: string; unit: string; note: string; isMain: boolean };
+
+/** 保存済み・取り込み・貼り付けの値を、選択欄の値へそろえる */
+function amountFields(quantity: number | null, unit: string | null): Pick<IngredientRow, "quantity" | "unit"> {
+  const canonical = canonicalUnit(unit);
+  // 「卵 2」のように数だけの場合は「個」として扱う
+  const resolved = quantity !== null && canonical === "" ? "個" : canonical;
+  return { quantity: quantity === null || quantityMode(resolved) === "none" ? "" : String(quantity), unit: resolved };
+}
 
 const MAX_IMAGE_EDGE = 1600;
 
@@ -108,11 +118,11 @@ export function RecipeForm({ initial, action, submitLabel, importImageUrl = null
   const [cookingMinutes, setCookingMinutes] = useState(initial.cookingMinutes ? String(initial.cookingMinutes) : "");
   const [sourceUrl, setSourceUrl] = useState(initial.sourceUrl ?? "");
   const [rows, setRows] = useState<IngredientRow[]>(() =>
-    (initial.ingredients.length > 0 ? initial.ingredients : [{ rawName: "", quantity: null, unit: null, note: null, isMain: false }]).map(
+    (initial.ingredients.length > 0 ? initial.ingredients : [{ rawName: "", quantity: 1, unit: "個", note: null, isMain: false }]).map(
       (line) => ({
         key: newKey(),
         rawName: line.rawName,
-        amount: line.quantity === null && !line.unit ? "" : formatQuantity(line.quantity, line.unit),
+        ...amountFields(line.quantity, line.unit),
         note: line.note ?? "",
         isMain: line.isMain,
       }),
@@ -154,7 +164,7 @@ export function RecipeForm({ initial, action, submitLabel, importImageUrl = null
   }
 
   function addRow() {
-    setRows((current) => [...current, { key: newKey(), rawName: "", amount: "", note: "", isMain: false }]);
+    setRows((current) => [...current, { key: newKey(), rawName: "", quantity: "1", unit: "個", note: "", isMain: false }]);
   }
 
   function importPaste() {
@@ -162,7 +172,10 @@ export function RecipeForm({ initial, action, submitLabel, importImageUrl = null
     if (lines.length === 0) return;
     setRows((current) => [
       ...current.filter((row) => row.rawName.trim() !== ""),
-      ...lines.map((line) => ({ key: newKey(), rawName: line.rawName, amount: line.amount, note: "", isMain: false })),
+      ...lines.map((line) => {
+        const parsed = parseAmount(line.amount);
+        return { key: newKey(), rawName: line.rawName, ...amountFields(parsed.quantity, parsed.unit), note: "", isMain: false };
+      }),
     ]);
     setPaste("");
   }
@@ -192,18 +205,21 @@ export function RecipeForm({ initial, action, submitLabel, importImageUrl = null
     if (Object.values(numbers).some((n) => Number.isNaN(n))) {
       return { error: "数字の欄（人数・調理時間・栄養）には数字だけを入力してください。" } as const;
     }
-    const ingredients = rows
-      .filter((row) => row.rawName.trim() !== "")
-      .map((row) => {
-        const parsed = parseAmount(row.amount);
-        return {
-          rawName: row.rawName.trim(),
-          quantity: parsed.quantity,
-          unit: parsed.unit,
-          note: row.note.trim() || null,
-          isMain: row.isMain,
-        };
-      });
+    const filled = rows.filter((row) => row.rawName.trim() !== "");
+    for (const row of filled) {
+      if (quantityMode(row.unit) === "none") continue;
+      const value = toNumberOrNull(row.quantity);
+      if (value !== null && (Number.isNaN(value) || value <= 0)) {
+        return { error: `「${row.rawName.trim()}」の数量には0より大きい数字を入力してください。` } as const;
+      }
+    }
+    const ingredients = filled.map((row) => ({
+      rawName: row.rawName.trim(),
+      quantity: quantityMode(row.unit) === "none" ? null : toNumberOrNull(row.quantity),
+      unit: row.unit || null,
+      note: row.note.trim() || null,
+      isMain: row.isMain,
+    }));
     const extra = extraTags
       .split(/[、,，\s]+/)
       .map((t) => t.trim())
@@ -372,7 +388,7 @@ export function RecipeForm({ initial, action, submitLabel, importImageUrl = null
         <h2 id={f("ingredients")} className={styles.sectionTitle}>
           材料
         </h2>
-        <p className={styles.hint}>分量は「200g」「大さじ1と1/2」「1個」「少々」のように1つの欄に書けます。</p>
+        <p className={styles.hint}>単位を選ぶと、数量を選ぶか入力できます。「少々・適量」は数量なしです。</p>
         <ol className={styles.rows}>
           {rows.map((row, index) => (
             <li key={row.key} className={styles.row}>
@@ -389,17 +405,69 @@ export function RecipeForm({ initial, action, submitLabel, importImageUrl = null
                   maxLength={60}
                   autoComplete="off"
                 />
-                <label className={styles.srOnly} htmlFor={f(`amt-${row.key}`)}>
-                  {index + 1}行目の分量
+              </div>
+              <div className={styles.amountFields}>
+                <label className={styles.srOnly} htmlFor={f(`qty-${row.key}`)}>
+                  {index + 1}行目の数量
                 </label>
-                <input
-                  id={f(`amt-${row.key}`)}
-                  className={`${controlClassName} ${styles.amount}`}
-                  value={row.amount}
-                  onChange={(e) => updateRow(row.key, { amount: e.target.value })}
-                  placeholder="分量"
-                  autoComplete="off"
-                />
+                {quantityMode(row.unit) === "choice" ? (
+                  <select
+                    id={f(`qty-${row.key}`)}
+                    className={controlClassName}
+                    value={row.quantity}
+                    onChange={(e) => updateRow(row.key, { quantity: e.target.value })}
+                  >
+                    {quantityChoices(row.unit, row.quantity === "" ? null : Number(row.quantity)).map((value) => (
+                      <option key={value} value={String(value)}>
+                        {quantityLabel(value)}
+                      </option>
+                    ))}
+                  </select>
+                ) : quantityMode(row.unit) === "number" ? (
+                  <input
+                    id={f(`qty-${row.key}`)}
+                    className={controlClassName}
+                    value={row.quantity}
+                    onChange={(e) => updateRow(row.key, { quantity: e.target.value })}
+                    inputMode="decimal"
+                    placeholder="数量"
+                    autoComplete="off"
+                  />
+                ) : (
+                  <input id={f(`qty-${row.key}`)} className={controlClassName} value="" placeholder="—" disabled readOnly />
+                )}
+                <label className={styles.srOnly} htmlFor={f(`unit-${row.key}`)}>
+                  {index + 1}行目の単位
+                </label>
+                <select
+                  id={f(`unit-${row.key}`)}
+                  className={controlClassName}
+                  value={row.unit}
+                  onChange={(e) => updateRow(row.key, { unit: e.target.value, quantity: quantityForUnit(e.target.value, row.quantity) })}
+                >
+                  {row.unit === "" ? <option value="">単位を選ぶ</option> : null}
+                  <optgroup label="よく使う">
+                    {unitOptions(row.unit).primary.map((unit) => (
+                      <option key={unit} value={unit}>
+                        {unitLabel(unit)}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="数量なし">
+                    {unitOptions(row.unit).none.map((unit) => (
+                      <option key={unit} value={unit}>
+                        {unit}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="そのほか">
+                    {unitOptions(row.unit).other.map((unit) => (
+                      <option key={unit} value={unit}>
+                        {unitLabel(unit)}
+                      </option>
+                    ))}
+                  </optgroup>
+                </select>
               </div>
               <div className={styles.rowActions}>
                 <label className={styles.checkbox}>
