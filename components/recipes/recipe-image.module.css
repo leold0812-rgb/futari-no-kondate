@@ -5,9 +5,87 @@
 }
 
 .placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+  --dish-bg: #e9eee4;
+  --dish-food: #edcf7a;
+  --dish-leaf: #718765;
+  --dish-tomato: #c8664f;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 70% 24%, rgb(255 255 255 / 64%), transparent 32%),
+    var(--dish-bg);
+  color: var(--color-primary-strong);
+}
+
+.placeholder[data-tone="1"] {
+  --dish-bg: #f5e8ce;
+  --dish-food: #e8b76b;
+  --dish-leaf: #73805b;
+  --dish-tomato: #c96a4f;
+}
+
+.placeholder[data-tone="2"] {
+  --dish-bg: #e7edf0;
+  --dish-food: #e7c989;
+  --dish-leaf: #637f68;
+  --dish-tomato: #c96b56;
+}
+
+.placeholder[data-tone="3"] {
+  --dish-bg: #f2e5df;
+  --dish-food: #e9c36f;
+  --dish-leaf: #76875b;
+  --dish-tomato: #c65d46;
+}
+
+.placeholder svg {
+  width: 100%;
+  height: 100%;
+  max-height: 180px;
+  filter: drop-shadow(0 4px 3px rgb(56 48 36 / 9%));
+}
+
+.shadow {
+  fill: #53634b;
+  opacity: 0.14;
+}
+
+.plate {
+  fill: #fffdf8;
+  stroke: rgb(83 99 75 / 10%);
+  stroke-width: 1.5;
+}
+
+.food {
+  fill: var(--dish-food);
+}
+
+.noodle {
+  fill: none;
+  stroke: #fff6dc;
+  stroke-linecap: round;
+  stroke-width: 5;
+}
+
+.leaf {
+  fill: var(--dish-leaf);
+}
+
+.tomato {
+  fill: var(--dish-tomato);
+}
+
+.stem {
+  fill: none;
+  stroke: #84964f;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.sparkle {
+  fill: none;
+  stroke: #fffdf8;
+  stroke-linecap: round;
+  stroke-width: 2.5;
 }

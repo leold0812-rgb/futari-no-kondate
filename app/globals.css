@@ -11,12 +11,18 @@
   --color-caution-strong: #8f4f35; /* 文字用。Terracottaは本文サイズでコントラスト4.5:1に届かないため */
   --color-primary-soft: #e7ebe1;
   --color-caution-soft: #f5e6de;
+  --color-tomato: #c8664f;
+  --color-tomato-soft: #f7e5dc;
+  --color-butter: #f2d98e;
+  --color-butter-soft: #fbf1d2;
+  --color-sky-soft: #e6eee9;
   --color-border: #ded8cc;
 
   --radius-card: 16px;
   --radius-input: 12px;
   --radius-pill: 999px;
-  --shadow-soft: 0 1px 2px rgb(47 49 46 / 6%);
+  --shadow-soft: 0 2px 8px rgb(47 49 46 / 5%);
+  --shadow-card: 0 8px 24px rgb(67 57 41 / 8%);
 
   --content-max-width: 640px;
   --space-gutter: 16px;
@@ -49,13 +55,18 @@ html {
 body {
   margin: 0;
   min-height: 100dvh;
-  background: var(--color-bg);
+  background: linear-gradient(180deg, #faf7ef 0%, var(--color-bg) 45%, #f5f1e8 100%);
   color: var(--color-text);
   font-family: var(--font-sans);
   font-size: 1rem;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   overflow-wrap: anywhere;
+}
+
+::selection {
+  background: var(--color-butter);
+  color: var(--color-text);
 }
 
 h1,

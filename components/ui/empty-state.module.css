@@ -1,25 +1,44 @@
 .card {
+  position: relative;
   display: grid;
   gap: 8px;
-  padding: 24px 20px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  overflow: hidden;
+  padding: 22px 20px 20px;
+  border: 1px solid #e8dfcd;
   border-radius: var(--radius-card);
+  background: linear-gradient(145deg, #fffdf8 48%, #fbf1d2 145%);
   box-shadow: var(--shadow-soft);
 }
 
+.art {
+  display: grid;
+  width: 86px;
+  height: 76px;
+  margin: -7px 0 1px;
+  place-items: center;
+  border-radius: 22px;
+  background: #fbf1d2;
+}
+
+.art svg {
+  display: block;
+  width: 82px;
+  height: auto;
+}
+
 .title {
-  font-size: 1.125rem;
+  font-size: 1.14rem;
+  letter-spacing: -0.03em;
   line-height: 1.4;
 }
 
 .description {
   color: var(--color-text-muted);
-  font-size: 0.9375rem;
+  font-size: 0.91rem;
 }
 
 .actions {
   display: grid;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 11px;
 }

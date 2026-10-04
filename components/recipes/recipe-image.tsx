@@ -6,11 +6,19 @@ import styles from "./recipe-image.module.css";
  */
 export function RecipeImage({ url, name, className }: { url: string | null; name: string; className?: string }) {
   if (!url) {
+    const tone = (name.codePointAt(0) ?? 0) % 4;
     return (
-      <div className={`${styles.placeholder} ${className ?? ""}`} aria-hidden="true">
-        <svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="24" cy="26" r="12" />
-          <path d="M8 26h4M36 26h4M24 10v2" strokeLinecap="round" />
+      <div className={`${styles.placeholder} ${className ?? ""}`} data-tone={tone} aria-hidden="true">
+        <svg viewBox="0 0 180 130" role="presentation">
+          <ellipse cx="90" cy="111" rx="46" ry="8" className={styles.shadow} />
+          <circle cx="90" cy="65" r="48" className={styles.plate} />
+          <circle cx="90" cy="65" r="37" className={styles.food} />
+          <path d="M62 67c9-20 16 18 26-1s16 12 28-2" className={styles.noodle} />
+          <path d="M72 49c-8-11-4-20 5-23 11 7 11 17 2 25m20-4c1-12 10-16 19-11 2 11-4 17-16 17" className={styles.leaf} />
+          <circle cx="74" cy="78" r="6" className={styles.tomato} />
+          <circle cx="108" cy="81" r="5.5" className={styles.tomato} />
+          <path d="M73 77l2-5m31 8 2-5" className={styles.stem} />
+          <path d="M31 51l3-7m-8 20 6 1m113-26 2-7m10 16 7-2" className={styles.sparkle} />
         </svg>
       </div>
     );
