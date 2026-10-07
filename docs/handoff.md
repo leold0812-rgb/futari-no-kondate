@@ -1,6 +1,13 @@
 # Handoff
 
-更新日: 2026-09-29（Gate 0〜8とPR #7〜#17がmainへマージ済み。UI刷新PR #19、速度・初回利用改善PR #20を作成）
+更新日: 2026-10-04（PR #19・#20・#22・#23がmainへマージ済み）
+
+## 現在地（2026-10-04）
+
+- PR #19（UI刷新）→ #20（初回利用・表示改善）→ #22（買い物・献立の読み込み改善）→ #23（材料入力・Instagram／文章取り込み）の順でstacked PR。すべて2026-10-04にmainへマージ済み。#21（東京リージョン）は10-01にマージ済み。
+- マージ前に各PRのlint/typecheck/test/build、DB/RLS、Auth、E2E、Vercel Previewがすべて成功していることを確認。
+- PR #23のローカル確認：`npm run lint`、`npm run typecheck`、`npm test`（29 files / 432 tests）が成功。
+- 次は[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)を実施し、Developmentで2人が一週間の流れを試す。作業前にローカルブランチを`main`へ更新する。
 
 v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](tasks/app-v1-plan.md)
 
@@ -369,7 +376,6 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 
 ## 次の推奨作業
 
-- PRのマージ（利用者）：#8 → #9 → … → #15 → #16（PINのロック廃止）の順に `gh pr merge <番号> --merge`。マージ前に次のPRのbaseをmainへ付け替え（`gh pr edit <番号> --base main`）、「Update branch」でCIを通してからマージする
-- 利用者作業：[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)のA〜J（Aで全migrationを適用）、`.env.example`へ`PIN_PEPPER=`（値は空）を追記、リポジトリをiCloud同期の外へ移す、GitHubで外部contributorのworkflow承認を必須にする
-- Developmentで2人が1週間の流れを試し、問題なければ[Production導入チェックリスト](runbooks/production-checklist.md)
-- 実機iPhoneでの確認（Safe Area・ホーム画面追加・オフライン案内）
+- hosted Developmentのセットアップ手順（[runbooks/hosted-development-setup.md](runbooks/hosted-development-setup.md)）A〜Jを実施し、Developmentで2人が一週間の流れを試す。
+- 実機iPhoneでSafe Area・ホーム画面追加・オフライン案内を確認する。
+- Developmentで問題なければ[Production導入チェックリスト](runbooks/production-checklist.md)へ進む。
