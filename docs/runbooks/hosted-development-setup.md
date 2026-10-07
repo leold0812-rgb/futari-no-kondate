@@ -55,9 +55,19 @@ Development projectのDashboardで次を設定する（ADR 0001の決定）。
 
 補足：`supabase config push` は使わない。`supabase/config.toml` にはローカル専用の値（`site_url = 127.0.0.1`、`otp_expiry = 20`）が入っているため。
 
+## まとめて行う場合（C〜G）
+
+A・Bが終わっていれば、C〜Gは次の1つのコマンドで行える。聞かれたもの（Publishable key・localadminのsecret key・2人の表示名・確認のy・2人のPIN）に答えるだけで、PIN_PEPPERは自動で作る。キーとPINは画面に表示しない。何度実行しても同じ結果になる。
+
+```bash
+bash scripts/setup/dev-setup.sh
+```
+
+個別に行う場合は以下のC〜G。
+
 ## C. 管理用secret keyの準備
 
-1. Settings → API Keys → Secret keys →「New secret key」で名前 `local-admin` のキーを作る（既存のキーは使わない。不要になったらこのキーだけ削除できる）
+1. Settings → API Keys → Secret keys →「New secret key」で名前 `localadmin` のキーを作る（既存のキーは使わない。不要になったらこのキーだけ削除できる）
 2. リポジトリ直下に `.env.bootstrap.local` を作り、次を書く（`.env*` はGit管理外。値をチャットやissueに貼らない）
 
 ```text
@@ -138,7 +148,7 @@ PreviewデプロイでログインできるようにDevelopment用の値を登�
 
 | 変数 | 値 |
 |---|---|
-| `SUPABASE_SERVICE_ROLE_KEY` | Development projectで新しく作ったsecret key（名前 `vercel-preview`。Cで作ったローカル用とは分ける） |
+| `SUPABASE_SERVICE_ROLE_KEY` | Development projectで新しく作ったsecret key（名前 `vercelpreview`。Cで作ったローカル用とは分ける） |
 | `PIN_PEPPER` | Fと同じ値 |
 
 - Production環境には登録しない（Productionは本番導入チェックリストで別の値を作る）。
@@ -189,5 +199,5 @@ node --env-file=.env.bootstrap.local scripts/nutrition/import-food-composition.m
 
 ## 後片付け・漏えい時
 
-- secret keyが漏れた疑いがあれば、Settings → API Keysで `local-admin` を削除し、新しいキーを作ってC以降をやり直す。
+- secret keyが漏れた疑いがあれば、Settings → API Keysで `localadmin` を削除し、新しいキーを作ってC以降をやり直す。
 - 登録をやり直したい場合（破壊的操作）：Dashboard → Authenticationで2人のユーザーを削除すると、profilesもcascadeで削除される。その後SQL Editorで `delete from public.couple_spaces;` を実行してからDをやり直す。
