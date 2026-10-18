@@ -85,7 +85,7 @@ test.describe.serial("レシピ（Gate 2）", () => {
     await page.goto("/recipes");
     await page.getByRole("link", { name: /E2E鶏の照り焼き/ }).click();
     await expect(page.getByRole("button", { name: "✓ また作りたい" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "お気に入りに追加" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /お気に入り登録済み/ })).toBeVisible();
   });
 
   test("入力に誤りがあると、保存せずに理由を示す", async ({ page }) => {
