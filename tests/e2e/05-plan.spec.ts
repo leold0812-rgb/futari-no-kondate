@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MEMBER_1, MEMBER_2, PIN_1, PIN_2, login, measureHomeNavigation, snap } from "./helpers";
+import { measureHomeNavigation, snap } from "./helpers";
 import { seedMainRecipes } from "./seed";
 
 test.describe.serial("週間計画（Gate 5）", () => {
@@ -8,7 +8,7 @@ test.describe.serial("週間計画（Gate 5）", () => {
   });
 
   test("候補を1枚ずつ選び、1つ戻して、5品で確定できる", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
+    await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "今週、なに作ろう？" })).toBeVisible();
     await page.getByRole("link", { name: "献立を決める" }).click();
 
@@ -47,8 +47,8 @@ test.describe.serial("週間計画（Gate 5）", () => {
     await snap(page, "42-home-planned");
   });
 
-  test("もう1人のホームにも決まった献立が出て、計画画面は決定済みになる", async ({ page }) => {
-    await login(page, MEMBER_2, PIN_2);
+  test("ホームに決まった献立が出て、計画画面は決定済みになる", async ({ page }) => {
+    await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "今週の食卓" })).toBeVisible();
     await expect(page.getByRole("region", { name: "今週の献立" }).getByRole("listitem")).toHaveCount(5);
     await page.goto("/plan");

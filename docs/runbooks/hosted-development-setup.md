@@ -47,7 +47,7 @@ npx supabase unlink
 
 ## B. Auth設定（Dashboard）
 
-Development projectのDashboardで次を設定する（ADR 0001の決定）。
+Development projectのDashboardで次を設定する（ADR 0001の決定。ログイン画面をやめた後も、session発行は同じ`generateLink` + `verifyOtp`なので設定は変わらない）。
 
 1. Authentication → Sign In / Providers →「Allow new users to sign up」を**OFF**
 2. Authentication → Sign In / Providers → Email →「Email OTP Expiration」を**60秒**（設定できない場合は許容される最小値）にして保存
@@ -65,17 +65,16 @@ NEXT_PUBLIC_SUPABASE_URL=https://jqkslfjdppwliugchwbm.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<Development の publishable key>
 SUPABASE_SERVICE_ROLE_KEY=<上で作った secret key>
 BOOTSTRAP_MEMBER_1_EMAIL=member-1@futari-no-kondate.invalid
-BOOTSTRAP_MEMBER_1_DISPLAY_NAME=<1人目の表示名>
-BOOTSTRAP_MEMBER_2_EMAIL=member-2@futari-no-kondate.invalid
-BOOTSTRAP_MEMBER_2_DISPLAY_NAME=<2人目の表示名>
+BOOTSTRAP_MEMBER_1_DISPLAY_NAME=<表示名>
 ```
 
-- メールは配送されない管理用アドレス（`.invalid`はRFC 6761の予約TLD）。Authのログインには使わず、サーバーがsession発行時に内部で参照するだけ。
-- 表示名はログイン画面に出る名前（1〜30文字、2人で別の名前）。
+- メールは配送されない管理用アドレス（`.invalid`はRFC 6761の予約TLD）。ログインには使わず、サーバーがsession発行時に内部で参照するだけ。
+- ログイン画面は無いので、**アカウントは1人作るだけでよい**（アプリは`profiles`の一番古い1件のsessionを自動で発行する）。表示名は1〜30文字。
+- 2人目も作りたい場合だけ `BOOTSTRAP_MEMBER_2_EMAIL` と `BOOTSTRAP_MEMBER_2_DISPLAY_NAME` を足す（別の名前にする）。アプリの画面は1人目のアカウントで動く。
 
-## D. 2人のアカウント登録（bootstrap）
+## D. アカウント登録（bootstrap）
 
-まずdry-run（書き込まない）。予定の操作が「Authユーザー作成×2、CoupleSpace作成、profile作成×2」であることを確認する。
+まずdry-run（書き込まない）。予定の操作が「Authユーザー作成、CoupleSpace作成、profile作成」であることを確認する。
 
 ```bash
 node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project-ref jqkslfjdppwliugchwbm
@@ -97,55 +96,20 @@ node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project
 - Authユーザーの作成が失敗した場合は、Email providerを有効に戻さず（ADR 0001：有効中は匿名のログインメール送信要求が受理される）、出力をそのままClaudeへ渡す。ローカルではEmail provider無効でも作成できることを確認済み。
 - `.invalid` のアドレスが拒否された場合（`email_address_invalid` など）は、自分が管理するドメインの配送されないアドレス（例：Gmailの`+`付きアドレス）に変えて再実行する。Email providerは無効なのでメールは送られない。
 
-## E. session発行のスモークテスト
+## E. Vercel（Preview環境）へのサーバー秘密値の登録
 
-ADR 0001で未検証だった「hostedでもサーバー方式のsession発行が動くか」を確かめる。すべて `OK` なら完了。
-
-```bash
-node --env-file=.env.bootstrap.local scripts/auth/smoke-session.mts --project-ref jqkslfjdppwliugchwbm
-```
-
-`NG` の項目があれば、出力をそのままClaudeへ渡す（token・keyの値は出力されない）。
-
-## F. PIN_PEPPERと2人のPIN（Gate 1.4）
-
-PINはサーバーで `scrypt(HMAC(PIN_PEPPER, PIN))` として保存する。`PIN_PEPPER` はアプリ（Vercel）と管理スクリプトで**同じ値**を使う。変えると登録済みPINはすべて無効になり、再設定が必要になる。
-
-1. pepperを作り、`.env.bootstrap.local` に `PIN_PEPPER=<出力>` を追記する（値は表示・共有しない）。
-
-```bash
-openssl rand -base64 48
-```
-
-2. 1人目が自分のPIN（6〜12桁の数字。同じ数字だけは不可。連番は可）を入力する。画面には表示されない。
-
-```bash
-node --env-file=.env.bootstrap.local scripts/auth/set-pin.mts --project-ref jqkslfjdppwliugchwbm --member 1
-```
-
-3. 2人目に交代して、本人が入力する。
-
-```bash
-node --env-file=.env.bootstrap.local scripts/auth/set-pin.mts --project-ref jqkslfjdppwliugchwbm --member 2
-```
-
-- PINを忘れた場合は、同じコマンドで再設定する。
-- PINを続けて間違えてもアカウントはロックされない。同じ送信元（回線）からの試行は1時間20回までで、超えると1時間待つ（総当たり対策）。
-
-## G. Vercel（Preview環境）へのサーバー秘密値の登録
-
-PreviewデプロイでログインできるようにDevelopment用の値を登録する。Vercel Dashboard → Project `futari-no-kondate` → Settings → Environment Variables で、**Environment: Preview のみ**、**Sensitive: ON** にして追加する。
+ログイン画面は無く、サーバーがsecret keyでsessionを作ってから画面を見せます。そのため**この鍵が無いとアプリを開けません**。Vercel Dashboard → Project `futari-no-kondate` → Settings → Environment Variables で、**Environment: Preview のみ**、**Sensitive: ON** にして追加する。
 
 | 変数 | 値 |
 |---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | Development projectで新しく作ったsecret key（名前 `vercel-preview`。Cで作ったローカル用とは分ける） |
-| `PIN_PEPPER` | Fと同じ値 |
 
 - Production環境には登録しない（Productionは本番導入チェックリストで別の値を作る）。
-- ローカルで `npm run dev` する場合は、`.env.local` に同じ4変数（URL・publishable key・secret key・PIN_PEPPER）を置く。
-- 登録後、PRのPreview URLを開き、2人ともログインできることを確認する。
+- ローカルで `npm run dev` する場合は、`.env.local` に3変数（URL・publishable key・secret key）を置く。
+- 登録後、PRのPreview URLを開き、ログイン画面を通らずにホームが表示されることを確認する。
+- 「アカウントがまだ用意されていません」と出たらDをやり直す。「いま開けませんでした」はsecret keyが違う・通信が不安定なときに出る。
 
-## H. URL取り込み用のOpenAI API key（Gate 3、任意）
+## F. URL取り込み用のOpenAI API key（Gate 3、任意）
 
 JSON-LD（構造化データ）を持つレシピサイトはキーなしでも取り込める。Instagramやブログなど構造化データの無いページをAIで読み取る場合だけ設定する。
 
@@ -157,7 +121,7 @@ JSON-LD（構造化データ）を持つレシピサイトはキーなしでも�
 - アプリ側でも1 spaceあたり1日20回までに制限している。失敗しても上位モデルへ自動で再試行しない。
 - 送るのは公開ページのタイトル・説明・本文の先頭8000文字だけで、利用者の情報は送らない。
 
-## I. 食品成分表の取り込み（Gate 2b、任意）
+## G. 食品成分表の取り込み（Gate 2b、任意）
 
 レシピの1人前の栄養とご飯の栄養を計算するための参照データ。取り込まなくても、レシピに手入力した栄養は使える。
 
@@ -180,9 +144,9 @@ node --env-file=.env.bootstrap.local scripts/nutrition/import-food-composition.m
 - ご飯の栄養は食品番号 `01088`（こめ［水稲めし］精白米 うるち米）を使う。取り込んだ版で番号が違う場合は Claude に伝える。
 - 取り込んだ後、アプリの「在庫 → 材料の設定 → 栄養の設定」で材料ごとに食品を選ぶと、その材料を使うレシピの栄養が自動で計算される。
 
-## J. 記録とバックアップ（Gate 8）
+## H. 記録とバックアップ（Gate 8）
 
-- 体重の記録（`weight_records`）はAのmigration適用で使えるようになる。追加の設定は無い
+- 記録画面（夕食のカロリーの週平均・食事の履歴）はAのmigration適用で使えるようになる。追加の設定は無い（体重の記録は2026-10-08にやめた）
 - 日次バックアップ（Vercel Cron → private Blob）は **Productionでだけ動く**。`CRON_SECRET` とBlob storeは `production-checklist.md` の3で設定する。Developmentでは登録しない
 - Developmentで手元にバックアップを取る・復元の手順は `backup-restore.md`
 - 本番導入は `production-checklist.md`
@@ -190,4 +154,4 @@ node --env-file=.env.bootstrap.local scripts/nutrition/import-food-composition.m
 ## 後片付け・漏えい時
 
 - secret keyが漏れた疑いがあれば、Settings → API Keysで `local-admin` を削除し、新しいキーを作ってC以降をやり直す。
-- 登録をやり直したい場合（破壊的操作）：Dashboard → Authenticationで2人のユーザーを削除すると、profilesもcascadeで削除される。その後SQL Editorで `delete from public.couple_spaces;` を実行してからDをやり直す。
+- 登録をやり直したい場合（破壊的操作）：Dashboard → Authenticationで登録したユーザーを削除すると、profilesもcascadeで削除される。その後SQL Editorで `delete from public.couple_spaces;` を実行してからDをやり直す。

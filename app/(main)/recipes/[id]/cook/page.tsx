@@ -9,9 +9,9 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "調理モード | ふたりの献立" };
 
 export default async function CookPage({ params }: PageProps<"/recipes/[id]/cook">) {
-  const member = await requireMember();
+  await requireMember();
   const { id } = await params;
-  const recipe = await getRecipeDetail(await createSupabaseServerClient(), member.userId, id).catch(() => null);
+  const recipe = await getRecipeDetail(await createSupabaseServerClient(), id).catch(() => null);
   if (!recipe) notFound();
   return (
     <>

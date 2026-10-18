@@ -6,7 +6,6 @@ import { freshnessOf, freshnessPriority } from "@/lib/inventory/status";
 import { personNutrition, type Nutrition, type PersonNutrition } from "@/lib/nutrition/meal";
 import { rankAlternatives, type DishCandidate } from "@/lib/recommendation/sides";
 import { formatQuantity, scaleQuantity } from "@/lib/units";
-import { getPartner } from "./members";
 import { signImagePaths } from "./recipes";
 
 /** 平日の献立（Gate 7）。利用者のsession（RLS）で呼ぶ。書き込みはDB関数だけ */
@@ -61,7 +60,7 @@ export async function getMealSetDetail(supabase: SupabaseClient, me: CurrentMemb
     { id: set.soup_recipe_id as string | null, kind: "SOUP" as const },
   ].filter((r): r is { id: string; kind: "MAIN" | "SIDE" | "SOUP" } => Boolean(r.id));
 
-  const [{ data: recipes }, { data: lines }, partner, portions, rice] = await Promise.all([
+  const [{ data: recipes }, { data: lines }, portions, rice] = await Promise.all([
     supabase
       .from("recipes")
       .select("id, name, image_path, cooking_minutes, servings, energy_kcal, protein_g, fat_g, carbs_g")
@@ -71,7 +70,6 @@ export async function getMealSetDetail(supabase: SupabaseClient, me: CurrentMemb
       .select("recipe_id, raw_name, quantity, unit")
       .in("recipe_id", refs.map((r) => r.id))
       .order("sort_order"),
-    getPartner(supabase, me),
     getRicePortions(supabase),
     getRiceNutrition(supabase),
   ]);
@@ -102,7 +100,8 @@ export async function getMealSetDetail(supabase: SupabaseClient, me: CurrentMemb
     };
   });
 
-  const members = [{ userId: me.userId, name: me.displayName, isMe: true }, ...(partner ? [{ userId: partner.userId, name: partner.displayName, isMe: false }] : [])];
+  // ログイン画面をやめたため、栄養は1人分（ふたり共通の設定）だけ出す
+  const members = [{ userId: me.userId, name: me.displayName, isMe: true }];
   return {
     id: set.id as string,
     planId: set.weekly_plan_id as string,

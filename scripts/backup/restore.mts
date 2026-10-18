@@ -3,14 +3,13 @@
  *
  *   node --env-file=.env.bootstrap.local scripts/backup/restore.mts --project-ref <ref> --file backup.json.gz            # 確認のみ
  *   … --apply                                                                                                         # 復元する
- *   … --user-map user-map.json   # 復元先で2人のアカウントを作り直してIDが変わった場合 {"旧ID": "新ID", …}
+ *   … --user-map user-map.json   # 復元先でアカウントを作り直してIDが変わった場合 {"旧ID": "新ID", …}
  *
  * 安全のため:
  *   - 復元先の対象テーブルがすべて空のときだけ入れる（既存データへ上書き・混在させない）
  *   - 途中で失敗したら、入れた分を消して元の空の状態へ戻す（直してからもう一度実行できる）
- *   - 復元先に、バックアップの2人（profiles）と同じIDのAuthアカウントがあることを先に確かめる
+ *   - 復元先に、バックアップのメンバー（profiles）と同じIDのAuthアカウントがあることを先に確かめる
  *   - hosted Development・ローカル以外は --production-ref に同じrefを書いたときだけ（scripts/lib/supabase-target.mts）
- * PINは復元しない。復元後に scripts/auth/set-pin.mts で2人のPINを設定し直す。
  */
 import { createClient } from "@supabase/supabase-js";
 import { readFileSync } from "node:fs";
@@ -87,7 +86,7 @@ async function main() {
     }
     fail("復元を取り消しました（復元先は空に戻っています）。原因を直してから、もう一度実行してください。");
   }
-  console.log("完了しました。2人のPINを scripts/auth/set-pin.mts で設定し直してください。");
+  console.log("完了しました。アプリを開いて、献立や買い物リストが戻っているか確認してください。");
 }
 
 main().catch((error: unknown) => fail(error instanceof Error ? error.message : "不明なエラー"));

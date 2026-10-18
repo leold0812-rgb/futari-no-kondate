@@ -10,11 +10,13 @@
 
 ### 含まれるもの・含まれないもの（`lib/backup/core.mts`）
 
-| 含む | 含まない |
+| 含む（20テーブル） | 含まない |
 |---|---|
-| 2人・共有space、レシピ・材料・評価・お気に入り、在庫と補正履歴、週間計画・推薦・献立セット、買い物、食事・調理履歴、ご飯量、**体重**、食品成分表 | PINの派生値と試行記録（復元後にPINを設定し直す）、URL取り込みの利用記録、Authのアカウント（Supabaseが管理）、**料理画像のファイル**（パスだけ保存。画像は再撮影・再取り込みで戻す） |
+| アカウント・共有space、レシピ・材料・評価・お気に入り、在庫と補正履歴、週間計画・推薦・献立セット、買い物、食事・調理履歴、ご飯の量、食品成分表 | URL取り込みの利用記録、Authのアカウント（Supabaseが管理）、**料理画像のファイル**（パスだけ保存。画像は再撮影・再取り込みで戻す） |
 
-バックアップには体重などの個人データが入る。**ダウンロードしたファイルはiCloud等の同期フォルダやリポジトリに置かず、用が済んだら削除する。**
+体重の記録は2026-10-08にやめたため、バックアップにも入らない（対象は21テーブルから20テーブルになった）。
+
+バックアップにはふたりの食事や買い物のデータが入る。**ダウンロードしたファイルはiCloud等の同期フォルダやリポジトリに置かず、用が済んだら削除する。**
 
 ## 復元テスト（自動）
 
@@ -49,12 +51,14 @@ node --env-file=.env.backup.local scripts/backup/fetch.mts --latest --out ~/Desk
 復元は **空のSupabase project** へ行う（既存データへの上書き・混在はしない。対象テーブルにデータがあればスクリプトが止まる）。
 途中で失敗した場合、スクリプトは入れた分を消して空の状態へ戻す（原因を直してから同じコマンドをもう一度実行できる）。食品成分表もバックアップに含まれるので、復元先で先に取り込まない。
 
-1. 新しいSupabase projectを作り、`hosted-development-setup.md` の A（migration）〜 D（2人のアカウント登録）を行う
-2. 2人のAuthアカウントのIDがバックアップと違う場合は、対応表を作る（Dashboard → Authentication で新しいIDを確認。バックアップの旧IDは `profiles` の `id`）
+1. 新しいSupabase projectを作り、`hosted-development-setup.md` の A（migration）〜 D（アカウント登録）を行う
+2. AuthアカウントのIDがバックアップと違う場合は、対応表を作る（Dashboard → Authentication で新しいIDを確認。バックアップの旧IDは `profiles` の `id`）
 
 ```json
-{ "旧ID(1人目)": "新ID(1人目)", "旧ID(2人目)": "新ID(2人目)" }
+{ "旧ID": "新ID" }
 ```
+
+   - バックアップに2人分のprofileが入っている場合は、2行とも書く
 
 3. 確認（まだ入れない）。空でない・アカウントが無い場合は理由を表示して止まる
 
@@ -70,7 +74,7 @@ node --env-file=.env.bootstrap.local scripts/backup/restore.mts --project-ref <�
 node --env-file=.env.bootstrap.local scripts/backup/restore.mts --project-ref <復元先ref> --file ~/Desktop/futari-backup.json.gz --user-map user-map.json --apply
 ```
 
-5. 2人のPINを設定し直す（F）。アプリで2人ともログインし、レシピ・献立・在庫・記録（体重は本人だけ）が戻っていることを確かめる
+5. アプリのURLを開き（ログイン画面は無い）、レシピ・献立・在庫・記録が戻っていることを確かめる
 6. VercelのURL・keyの環境変数を新しいprojectへ向け直し、再デプロイする
 7. 使い終わったバックアップファイルと `user-map.json` を削除する
 

@@ -6,19 +6,17 @@ import styles from "./preference-controls.module.css";
 
 type Props = {
   recipeId: string;
-  myRating: Rating | null;
-  partnerRating: Rating | null;
-  partnerName: string | null;
-  myFavorite: boolean;
+  rating: Rating | null;
+  favorite: boolean;
   setRatingAction: (recipeId: string, rating: Rating | null) => Promise<{ error?: string }>;
   setFavoriteAction: (recipeId: string, favorite: boolean) => Promise<{ error?: string }>;
 };
 
-/** 自分の評価（3段階）とお気に入り。相手の評価は表示だけ（変更できない） */
+/** 評価（3段階）とお気に入り。ふたり共通の設定として扱う */
 export function PreferenceControls(props: Props) {
   const [pending, startTransition] = useTransition();
-  const [rating, setOptimisticRating] = useOptimistic(props.myRating);
-  const [favorite, setOptimisticFavorite] = useOptimistic(props.myFavorite);
+  const [rating, setOptimisticRating] = useOptimistic(props.rating);
+  const [favorite, setOptimisticFavorite] = useOptimistic(props.favorite);
   const [error, setError] = useState<string | null>(null);
 
   // 失敗したら楽観表示は元に戻り、理由と再試行の方法を示す
@@ -43,7 +41,7 @@ export function PreferenceControls(props: Props) {
 
   return (
     <div className={styles.wrap} aria-busy={pending}>
-      <div role="group" aria-label="自分の評価" className={styles.ratings}>
+      <div role="group" aria-label="評価" className={styles.ratings}>
         {RATINGS.map((value) => (
           <button
             key={value}
@@ -62,11 +60,6 @@ export function PreferenceControls(props: Props) {
         <button type="button" className={styles.favorite} aria-pressed={favorite} onClick={toggleFavorite}>
           <span aria-hidden="true">{favorite ? "★" : "☆"}</span> {favorite ? "お気に入り登録済み" : "お気に入りに追加"}
         </button>
-        {props.partnerName ? (
-          <p className={styles.partner}>
-            {props.partnerName}さんの評価：{props.partnerRating ? RATING_LABELS[props.partnerRating] : "未評価"}
-          </p>
-        ) : null}
       </div>
       <p className={styles.error} role="status" aria-live="polite">
         {error}

@@ -10,12 +10,14 @@ const members: MemberConfig[] = [
 const empty: BootstrapState = { authUsers: [], profiles: [], spaceIds: [] };
 
 describe("validateMembers", () => {
-  it("正しい2人分の設定を受け付ける", () => {
+  it("1人・2人どちらの設定も受け付ける", () => {
+    expect(validateMembers([members[0]])).toBeNull();
     expect(validateMembers(members)).toBeNull();
   });
 
   it.each([
-    ["人数が2人でない", [members[0]]],
+    ["人数が0人", []],
+    ["人数が3人", [members[0], members[1], { email: "member-3@example.invalid", displayName: "きいろ" }]],
     ["メール形式が不正", [{ ...members[0], email: "no-at-mark" }, members[1]]],
     ["表示名が空白だけ", [{ ...members[0], displayName: "   " }, members[1]]],
     ["表示名が31文字", [{ ...members[0], displayName: "あ".repeat(31) }, members[1]]],
@@ -43,6 +45,12 @@ describe("planBootstrap", () => {
       "insertProfile",
     ]);
     expect(plan.targetSpace).toEqual({ kind: "new" });
+  });
+
+  it("1人だけの設定なら、ユーザー1人・space・profile 1件を作る（ログイン画面なしの既定）", () => {
+    const plan = planBootstrap([members[0]], empty);
+    if (plan.status === "blocked") throw new Error(plan.reason);
+    expect(plan.actions.map((a) => a.kind)).toEqual(["createAuthUser", "createSpace", "insertProfile"]);
   });
 
   it("完成済みの状態では何もしない（冪等）", () => {

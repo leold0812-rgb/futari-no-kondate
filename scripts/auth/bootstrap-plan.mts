@@ -1,10 +1,11 @@
 /**
- * 固定2人のbootstrapで「今の状態から何をすべきか」を決める純粋関数（DB・ネットワークに触れない）。
+ * bootstrapで「今の状態から何をすべきか」を決める純粋関数（DB・ネットワークに触れない）。
  *
  * 方針：
- *   - 何度実行しても同じ最終状態（2人のAuthユーザー＋同じspaceに2件のprofile）へ収束させる。
+ *   - 何度実行しても同じ最終状態（設定した人数のAuthユーザー＋同じspaceに同数のprofile）へ収束させる。
+ *   - ログイン画面をやめたため、通常は1人だけ登録する（アプリは最初のprofileを使う）。2人まで指定できる。
  *   - 想定外の状態（設定にないAuthユーザー、別々のspaceへの所属など）では何も変更せずに止まる。
- *   - Authユーザーはパスワード無しで作る（PINをAuthへ保存しない。ADR 0001）。
+ *   - Authユーザーはパスワード無しで作る。
  */
 
 export type MemberConfig = { email: string; displayName: string };
@@ -45,7 +46,7 @@ export function normalizeEmail(email: string): string {
 
 /** DBの制約（btrim後1〜30文字、同一space内で重複不可）と同じ条件で設定を検証する */
 export function validateMembers(members: readonly MemberConfig[]): string | null {
-  if (members.length !== 2) return "メンバーはちょうど2人を指定してください。";
+  if (members.length < 1 || members.length > 2) return "メンバーは1人または2人を指定してください。";
 
   for (const [index, member] of members.entries()) {
     const label = `メンバー${index + 1}`;
@@ -57,11 +58,13 @@ export function validateMembers(members: readonly MemberConfig[]): string | null
       return `${label}の表示名は1〜${DISPLAY_NAME_MAX_LENGTH}文字で指定してください。`;
     }
   }
-  if (normalizeEmail(members[0].email) === normalizeEmail(members[1].email)) {
-    return "2人の管理用メールアドレスが同じです。別々のアドレスを指定してください。";
-  }
-  if (members[0].displayName.trim() === members[1].displayName.trim()) {
-    return "2人の表示名が同じです。ログイン画面で区別できる名前にしてください。";
+  if (members.length === 2) {
+    if (normalizeEmail(members[0].email) === normalizeEmail(members[1].email)) {
+      return "2人の管理用メールアドレスが同じです。別々のアドレスを指定してください。";
+    }
+    if (members[0].displayName.trim() === members[1].displayName.trim()) {
+      return "2人の表示名が同じです。別々の名前にしてください。";
+    }
   }
   return null;
 }

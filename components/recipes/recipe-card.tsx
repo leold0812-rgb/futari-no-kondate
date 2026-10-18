@@ -16,7 +16,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeSummary }) {
           <p className={styles.meta}>
             <span>{DISH_TYPE_LABELS[recipe.dishType]}</span>
             {recipe.cookingMinutes ? <span>{recipe.cookingMinutes}分</span> : null}
-            {recipe.myFavorite ? <span aria-label="お気に入り">★</span> : null}
+            {recipe.favorite ? <span aria-label="お気に入り">★</span> : null}
           </p>
           {recipe.status !== "READY" ? (
             <p className={styles.status}>{RECIPE_STATUS_LABELS[recipe.status]}</p>

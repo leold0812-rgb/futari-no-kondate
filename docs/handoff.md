@@ -1,15 +1,27 @@
 # Handoff
 
-更新日: 2026-10-04（PR #19・#20・#22・#23がmainへマージ済み）
+更新日: 2026-10-13（ログイン画面と体重の記録を削除。文書を整合させた）
 
-## 現在地（2026-10-04）
+## 現在地（2026-10-13）
 
-- PR #19（UI刷新）→ #20（初回利用・表示改善）→ #22（買い物・献立の読み込み改善）→ #23（材料入力・Instagram／文章取り込み）の順でstacked PR。すべて2026-10-04にmainへマージ済み。#21（東京リージョン）は10-01にマージ済み。
-- マージ前に各PRのlint/typecheck/test/build、DB/RLS、Auth、E2E、Vercel Previewがすべて成功していることを確認。
-- PR #23のローカル確認：`npm run lint`、`npm run typecheck`、`npm test`（29 files / 432 tests）が成功。
-- 次は[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)を実施し、Developmentで2人が一週間の流れを試す。作業前にローカルブランチを`main`へ更新する。
+- 利用者の指示「ログインは不要、体重記録も不要にしてシンプルに」（2026-10-08）に対応した変更が作業ツリーにある。migrationは`supabase/migrations/20261009090000_remove_login_and_weight.sql`の1本だけ。詳細は下の「ログイン画面と体重の記録の削除」と[ADR 0002](decisions/0002-remove-login.md)。
+- それ以前はPR #19（UI刷新）→ #20（初回利用・表示改善）→ #22（買い物・献立の読み込み改善）→ #23（材料入力・Instagram／文章取り込み）の順でstacked PR。すべて2026-10-04にmainへマージ済み。#21（東京リージョン）は10-01にマージ済み。マージ前に各PRのlint/typecheck/test/build、DB/RLS、Auth、E2E、Vercel Previewがすべて成功していることを確認した（PR #23のローカル確認は`npm run lint`・`npm run typecheck`・`npm test`（29 files / 432 tests）が成功）。
+- 次は[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)を実施し、Developmentでふたりが一週間の流れを試す。作業前にローカルブランチを`main`へ更新する。
 
 v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](tasks/app-v1-plan.md)
+
+## ログイン画面と体重の記録の削除（2026-10-08の指示）
+
+- **ログイン画面・PIN・試行制限を削除。** 代わりに`proxy.ts`がsessionの無いリクエストを`/api/auth/start`へ寄せ、サーバーがsecret keyの`generateLink` + `verifyOtp`で代表アカウント1つのsessionを発行してから元の画面へ戻す（`app/api/auth/start/route.ts`、`lib/auth/auto-session.ts`）。対象は`profiles`の`created_at`が最も古い1件。
+- **RLSのpolicyとgrantは変えていない**（DBから見ればログイン済みの利用者1人としてのアクセス。anonへは開放していない）。公開pathは`/api/auth/start`と`/offline`だけ（`lib/auth/paths.ts`）。無限ループ防止に60秒の`kondate-session-tried` cookie、発行できないときは日本語の503ページ。
+- **セキュリティ上の性質が変わった：URLを知っている人は誰でも読み書きできる**（利用者が「鍵を完全になくす」ことを選択）。URLは共有しない運用が前提。
+- 削除したDBオブジェクト：`private.pin_credentials`、`private.login_throttles`、`public.weight_records`、関数`pin_login_begin` / `pin_login_succeeded` / `pin_set` / `private.delete_stale_login_sources` / `private.check_weight_record_date`。`public.backup_snapshot()`は作り直し、バックアップ対象は21→**20テーブル**（`lib/backup/core.mts`の`BACKUP_TABLES`の最後は`rice_portions`）。
+- 削除した環境変数：`PIN_PEPPER`（`lib/env/server.ts`・`scripts/check-client-bundle.mjs`・CIから削除）。CIの`E2E_PIN_1` / `E2E_PIN_2` / `E2E_MEMBER_1_NAME` / `E2E_MEMBER_2_NAME`も削除。
+- **体重の記録を削除。** `/records`に残るのは「夕食のカロリー（週平均）」と「食事の履歴」の2つだけ。`components/records/weight-*`、`app/(main)/records/actions.ts`、`lib/services/records.ts`の`getMyWeights`、`lib/records/summary.ts`の`weightSeries` / `parseWeightKg` / `WeightPoint` / `WeightSeries`も削除。
+- **「自分 / 相手」の区別をやめた。** お気に入り・評価・ご飯の量はふたり共通（テーブルの形は変えず、読むときに`user_id`で絞らない。書くときは今もログイン中の本人のID）。レシピ詳細の「相手の評価」は無くなり、設定画面は「ご飯の量（ふたり共通）」「買い物リストの並び順」だけになった。レシピ一覧の並べ替えの評価スコアはふたり分の合計ではなく1つの評価（`MAKE_AGAIN: 2, NORMAL: 1, NEVER_AGAIN: -2`、`lib/services/recipes.ts`）。
+- **アカウントは1人だけ作るのが既定。** `scripts/auth/bootstrap-couple.mts`は1人または2人を受け付ける（以前は2人必須）。CIのE2Eはメンバー1人だけをbootstrapする。
+- テスト：`tests/e2e/helpers.ts`が公開するのは`snap()`と`measureHomeNavigation()`だけ（ログイン手順は無い）。`tests/e2e/01-auth.spec.ts`は「開いたらすぐ使える（ログイン画面なし）」を確かめる。`tests/integration/auth-session-issuance.test.ts`は**残している**（`/api/auth/start`が使う「サーバーだけがsessionを発行できる」仕組みの検証。役割の説明を書き換えた）。削除：`tests/integration/pin-login.test.ts`、`tests/unit/pin.test.ts`、`supabase/tests/database/pin_auth.test.sql`、`weight_records.test.sql`。追加：`tests/unit/auth-paths.test.ts`。
+- 削除したスクリプト：`scripts/auth/set-pin.mts`、`scripts/auth/smoke-session.mts`（手順書のPIN設定・session確認の節も削除した）。
 
 ## 利用者の3つの要望への対応（2026-10-01）
 
@@ -17,7 +29,7 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - **材料の入力**：`components/recipes/recipe-form.tsx` の材料行を「数量（選ぶ／入力）＋単位（選ぶ）」に変更。選択肢は `lib/units/amount-choices.ts`。読み取りの強化は `lib/units/index.ts`（parseAmount）と `lib/ingredients/index.ts`（splitIngredientLine）。
 - **Instagram**：`lib/import/instagram.ts`（埋め込み用ページから文章を取得）、`lib/import/recipe-text.ts`（AIなしで「材料」「作り方」を読む）、`importRecipeFromText` / `importRecipeTextAction`（貼り付け）。利用者が試した投稿は文章にレシピが無く（動画のみ）、その場合は理由を表示する。
 - テスト：unit 432件（`amount-choices`・`recipe-text`・`local-write` ほか）、E2E `02-recipes`（単位・数量の選択）・`03-import`（貼り付け）。DB変更・環境変数の変更なし。
-- 未対応：在庫の手動追加・買い物の手動追加の分量欄は従来の1欄のまま（同じ部品へ寄せるのは次の候補）。AIでの読み取りは `OPENAI_API_KEY`（手順書H）が未登録。
+- 未対応：在庫の手動追加・買い物の手動追加の分量欄は従来の1欄のまま（同じ部品へ寄せるのは次の候補）。AIでの読み取りは `OPENAI_API_KEY`（手順書F。節の記号は2026-10-13の整理でHから変わった）が未登録。
 
 ## 表示速度と初回利用の改善（2026-09-29、PR #20）
 
@@ -59,6 +71,8 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 
 ## 完了
 
+以下は各作業を終えた時点の記録です（書き換えずに残しています）。PIN・ログイン画面・体重に関する記述は2026-10-08に削除されたため、現在の姿は上の「ログイン画面と体重の記録の削除」を見てください。
+
 ### 設計フェーズ（既存）
 
 - 原仕様全体を確認し、プロダクト仕様、アーキテクチャ、DB、UI、推薦、開発計画を文書化
@@ -94,7 +108,7 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 - バックアップ：`lib/backup/core.mts`（対象テーブル・読み出し・復元・保持期限）、`app/api/cron/backup/route.ts`（CRON_SECRET認証・private Blobへgzip JSON・30日削除）、`vercel.json`（毎日UTC 18時）
 - 管理スクリプト `scripts/backup/`：`export.mts`（手元へ保存）、`fetch.mts`（Blobから取得）、`restore.mts`（空のprojectへ復元・ID対応表）、`roundtrip-check.mts`（CIの復元テスト）
 - PWA：PNGアイコン（192・512・maskable・apple-touch-icon）、`public/sw.js`（オフライン案内だけ。利用データはキャッシュしない）、`/offline`、`app/(main)/error.tsx`、`app/not-found.tsx`
-- 手順書：`docs/runbooks/backup-restore.md`、`docs/runbooks/production-checklist.md`、`hosted-development-setup.md` J
+- 手順書：`docs/runbooks/backup-restore.md`、`docs/runbooks/production-checklist.md`、`hosted-development-setup.md` H（2026-10-13の整理まではJ）
 - 依存追加：`@vercel/blob` 2.8.0（固定）
 - テスト：unit 375件（`records-summary`・`backup-core`を追加）、pgTAP `weight_records.test.sql` 19件・`backup_snapshot.test.sql` 5件、E2E `09-records.spec.ts`（体重・相手に見えない・Cronの認証）、CIの復元テスト
 
@@ -102,7 +116,7 @@ v1実装の全体計画・進捗・判断ログ：[docs/tasks/app-v1-plan.md](ta
 
 - migration `20261005090000_create_food_composition.sql`、`scripts/nutrition/`（CSV読み取り・取り込み）、`lib/nutrition/recipe.ts`、`lib/services/nutrition.ts`
 - 画面：`/inventory/ingredients/[id]`（食品の検索・選択、重さへの換算）、レシピ詳細に計算の出典と不足している材料の案内。レシピ保存・対応付け変更で自動計算
-- 手順書「I. 食品成分表の取り込み」（ユーザー作業）
+- 手順書「食品成分表の取り込み」（ユーザー作業。現在の節はG）
 - テスト：単体（計算・CSV）、pgTAP `food_composition.test.sql`（15件）、E2E `08-nutrition.spec.ts`（架空の食品で計算を確認）
 
 ### Gate 7: 日常利用（PR作成時点）
@@ -300,7 +314,7 @@ UI kit・状態管理library・OpenAI SDKは未追加。Supabase clientはまだ
 - （解決済み・Gate 8）PNGアイコン（192/512・maskable・apple-touch-icon）を仮デザインから生成。正式デザインが決まったら`lib/pwa/icon.tsx`を差し替える。
 - 実機iPhone（Safe Area・standalone表示）は未確認。ブラウザの375×667エミュレーションのみで確認。
 - Instagramは取得制限やページ構造変更により自動解析できない場合がある。URLのみ保存を必須の正常経路として扱う。
-- 短いPINは総当たり耐性が低い。Supabase Auth、6桁以上、試行制限を設計条件とした。
+- （2026-10-08に取り消し）短いPINは総当たり耐性が低いため、Supabase Auth、6桁以上、試行制限を設計条件としていた。ログイン画面をやめたのでPINは無くなり、代わりに「URLを知っている人は誰でも読み書きできる」ことを受け入れた（[ADR 0002](decisions/0002-remove-login.md)）。
 - 食材固有の容量↔重量換算はマスタなしに安全に行えない。
 - 日本食品標準成分表の採用版・収載データ範囲・出典表示は栄養Gate開始時に公式一次資料で確認する。
 - 元サイト画像の複製可否は取得元の利用条件に依存する。
@@ -376,6 +390,6 @@ Gate 0-5でVercelへ公開用2変数を登録（上記「実環境の設定」�
 
 ## 次の推奨作業
 
-- hosted Developmentのセットアップ手順（[runbooks/hosted-development-setup.md](runbooks/hosted-development-setup.md)）A〜Jを実施し、Developmentで2人が一週間の流れを試す。
+- hosted Developmentのセットアップ手順（[runbooks/hosted-development-setup.md](runbooks/hosted-development-setup.md)）A〜Hを実施し、Developmentでふたりが一週間の流れを試す（ログイン画面が無いので、アカウントは1人作るだけでよい）。
 - 実機iPhoneでSafe Area・ホーム画面追加・オフライン案内を確認する。
 - Developmentで問題なければ[Production導入チェックリスト](runbooks/production-checklist.md)へ進む。

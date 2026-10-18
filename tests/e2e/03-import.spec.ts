@@ -1,10 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { MEMBER_1, PIN_1, login, snap } from "./helpers";
+import { snap } from "./helpers";
 
 // CIではOpenAIのキーを設定しない。JSON-LDの無いページや取得できないページは失敗の経路になる
 test.describe.serial("URL取り込み（Gate 3）", () => {
   test("内部向けURLは取り込まず、手入力で続けられる", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes/new");
     await page.getByLabel("レシピのページのURL").fill("http://127.0.0.1/recipe");
     await page.getByRole("button", { name: "取り込む" }).click();
@@ -22,7 +21,6 @@ test.describe.serial("URL取り込み（Gate 3）", () => {
   });
 
   test("読み取れないページはURLだけ保存でき、あとで再取り込みへ進める", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes/new");
     await page.getByLabel("レシピのページのURL").fill("https://example.com/");
     await page.getByRole("button", { name: "取り込む" }).click();
@@ -42,7 +40,6 @@ test.describe.serial("URL取り込み（Gate 3）", () => {
     await expect(page.getByRole("button", { name: "URLだけ保存する" })).toHaveCount(0);
   });
   test("投稿の文章を貼り付けると、材料の単位と数量が選ばれた状態で入力欄に入る", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes/new");
     await page.getByText("投稿の文章を貼り付けて取り込む").click();
     await page
@@ -66,7 +63,6 @@ test.describe.serial("URL取り込み（Gate 3）", () => {
   });
 
   test("レシピの書かれていない文章は、理由を示して取り込まない", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes/new");
     await page.getByText("投稿の文章を貼り付けて取り込む").click();
     await page.getByLabel(/Instagramの投稿の文章/).fill("「動画」とコメントで受け取れます。ご案内をDMでお送りします。");

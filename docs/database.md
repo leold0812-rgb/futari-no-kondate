@@ -12,7 +12,7 @@
 
 ### 認証・設定
 
-- `couple_spaces`（確定・Gate 1.1）: 共有領域。`id`, `created_at`, `updated_at`。メンバー数は0〜2人
+- `couple_spaces`（確定・Gate 1.1）: 共有領域。`id`, `created_at`, `updated_at`。メンバー数は0〜2人（schemaは変えていないが、ログイン画面をやめた2026-10-08以降はアカウントを1人だけ作るのが既定）
 - `profiles`（確定・Gate 1.1）: `id`（`auth.users.id`へのFK、削除はcascade）, `couple_space_id`（必須FK、`on delete restrict`）, `display_name`（1〜30文字、同一space内で重複不可）, `created_at`, `updated_at`。email・PIN・Auth metadataは持たない。`role`列は未追加（使う機能ができた時点で追加する）
 - `user_preferences`: `user_id`, ご飯量、表示設定
 - `shopping_category_orders`: `couple_space_id`, category, position
@@ -22,8 +22,8 @@
 - `recipes`: 共有、name, source_url, import_status, image_path, dish_type, cuisine, taste, servings, cooking_minutes, instructions(jsonb), high_cost, special_seasoning, one_dish, nutrition_per_serving, timestamps
 - `ingredients`: 共有、canonical_name, category, canonical_unit, storage_days, aliases
 - `recipe_ingredients`: recipe_id, ingredient_id(nullable), raw_name, quantity(nullable), unit, note, sort_order
-- `recipe_ratings`: recipe_id + user_id unique, rating(`MAKE_AGAIN/NORMAL/NEVER_AGAIN`)
-- `recipe_favorites`: recipe_id + user_id unique
+- `recipe_ratings`: recipe_id + user_id unique, rating(`MAKE_AGAIN/NORMAL/NEVER_AGAIN`)。2026-10-08以降は表示・並べ替えでふたり共通として扱う（`user_id`で絞らない）
+- `recipe_favorites`: recipe_id + user_id unique。同じくふたり共通として扱う
 - `recipe_histories`: recipe_id, couple_space_id, cooked_by, cooked_at, meal_history_id
 - `food_composition_items`: 食品成分表の版・食品番号・100g当たり栄養
 - `ingredient_food_mappings`: ingredient_id, food_item_id, edible_ratio, mapping_status, reviewed_by
@@ -47,15 +47,13 @@
 - `shopping_lists`: weekly_plan_id unique, couple_space_id, status, version
 - `shopping_items`: shopping_list_id, ingredient_id(nullable), name_snapshot, required_quantity, inventory_quantity, buy_quantity, unit, category, is_insurance, checked_at, checked_by, inventory_applied_at
 - `meal_histories`: couple_space_id, meal_set_id(nullable), eaten_at, nutrition_snapshot, completed_by, idempotency_key unique
-- `weight_records`: user_id, measured_on, weight_kg。`(user_id, measured_on)` unique
-- `rice_portions`: user_id unique, grams
+- `rice_portions`: user_id unique, grams。2026-10-08以降はふたり共通の設定として扱う
 
 ## RLS方針
 
 - `profiles`（確定・Gate 1.1）: authenticatedは同じCoupleSpaceのprofileを最小列（`id`, `couple_space_id`, `display_name`）だけ読める。作成・更新・削除は一般ユーザーに許可しない（本人の表示名更新も現時点では不可）。認証情報は持たない。
 - 共有テーブル：`auth.uid()`のprofileと同じ`couple_space_id`だけselect/insert/update/delete可能。
-- `weight_records`: `user_id = auth.uid()`のみ。CoupleSpace一致による閲覧は絶対に許可しない。
-- `recipe_ratings` / `recipe_favorites`: 同じ空間内レシピを対象に、本人行だけ変更可能。表示上の集約は安全なview/functionを使う。
+- `recipe_ratings` / `recipe_favorites`: 同じ空間内レシピを対象に、本人行だけ変更可能（policyは変えていない）。読むときはふたり共通として扱い、`user_id`で絞らない。
 - バックアップ用service roleは通常UIから到達できないCron routeだけで使う。
 
 ## 整合性と同時実行
@@ -69,7 +67,7 @@
 ## 未確定事項（実装を止めない）
 
 - 材料の容量↔重量換算は食材固有密度が必要なため、初期版は明示マスタがあるものだけ対応する。
-- 「もう作らない」は本人の嗜好として保持し、候補生成では2人のどちらかが指定した料理を通常除外する。手動追加は許可する。
+- 「もう作らない」はふたり共通の評価として扱い、候補生成では通常除外する。手動追加は許可する。
 - 画像バックアップ範囲はPhase 12でストレージ容量を測って確定する。
 
 ## 確定済みschema: CoupleSpace / profiles（Gate 1.1）
@@ -94,17 +92,15 @@ migration: `supabase/migrations/20260926180000_create_couple_spaces_and_profiles
 - RLS policyは`couple_spaces_select_own_space`と`profiles_select_same_space`の2本（どちらもSELECT・authenticated）。書き込み用policyは作らない（grantsも無いため二重に拒否）。
 - 所属判定は`private.current_couple_space_id()`（`SECURITY DEFINER`、`search_path = ''`、EXECUTEはauthenticatedのみ）。`profiles`を直接再帰参照しない。`private` schemaはPostgRESTのexposed schemas（`supabase/config.toml`の`api.schemas`）に含めない。
 
-## 確定済みschema: PIN認証（Gate 1.4）
+## 削除済みschema: PIN認証（旧Gate 1.4）
 
-migration: `supabase/migrations/20260928090000_create_pin_auth.sql`。テスト: `supabase/tests/database/pin_auth.test.sql`、`tests/integration/pin-login.test.ts`。
+migration `supabase/migrations/20261009090000_remove_login_and_weight.sql` で**削除した**（2026-10-08 利用者の指示）。現在のDBには次のものは存在しない。
 
-- `private.pin_credentials`（`user_id` PK→`auth.users` cascade、`pin_hash`は`scrypt$`形式のみ）と`private.login_throttles`（`scope`=`account`/`source`、`subject`、試行回数、window、`locked_until`、`lockout_count`）。どのroleにもテーブル権限を与えない（service_roleも関数経由のみ）。`private` schemaはAPIに公開しない。
-- 関数（`public`、`SECURITY DEFINER`、`search_path = ''`、EXECUTEはservice_roleのみ）:
-  - `pin_login_begin(user_id, source)`：ロック中なら`allowed=false`と残り秒数。profileとPIN登録のある利用者以外は`allowed=false`・待ち0（アカウント行を作らず、照合もしない）。そうでなければ試行を1回予約し`pin_hash`を返す。行ロックは常にaccount→sourceの順。1日以上前の送信元記録は各呼び出しの最後に`private.delete_stale_login_sources`で削除（他の処理がロック中の行は`skip locked`で飛ばし、ロック順を崩さない）
-  - `pin_login_succeeded(user_id)`：アカウントの連続試行・ロック段階をリセット
-  - `pin_set(user_id, pin_hash)`：profileのあるユーザーだけ。登録・更新しアカウントのロックを解除
-- 制限：送信元（IPのHMAC）は1時間の固定windowで20回（成功も数える）で1時間。アカウント単位のロックは`20261007090000_disable_pin_account_lockout.sql`で廃止（利用者の指示。`pin_login_begin`はアカウント行を作らず、`pin_login_succeeded`・`pin_set`のアカウント行リセットは空振りになる）。
-- PIN照合はアプリサーバー（`lib/auth/pin.ts`、scrypt N=2^15・r=8・p=1、pepperは環境変数`PIN_PEPPER`）。
+- テーブル `private.pin_credentials`、`private.login_throttles`
+- 関数 `public.pin_login_begin(uuid, text)`、`public.pin_login_succeeded(uuid)`、`public.pin_set(uuid, text)`、`private.delete_stale_login_sources(text)`
+- 環境変数 `PIN_PEPPER`（アプリ・スクリプト・CIからも削除）
+
+ログイン画面の代わりに、`/api/auth/start`（`lib/auth/auto-session.ts`）がsecret keyの`generateLink` + `verifyOtp`で代表アカウント1つのsessionを発行する。相手は`profiles`を`created_at`の古い順に並べた最初の1件。**RLSのpolicyとgrantは変えていない**ため、DBから見ればこれまでどおりログイン済みの利用者1人としてのアクセスで、anonへは何も開放していない。この発行手順の検証テストは`tests/integration/auth-session-issuance.test.ts`に残している。
 
 ## 確定済みschema: レシピ（Gate 2）
 
@@ -163,7 +159,7 @@ migration: `supabase/migrations/20261003090000_create_shopping.sql`。テスト:
 
 migration: `supabase/migrations/20261004090000_create_meal_histories.sql`。テスト: `supabase/tests/database/meal_histories.test.sql`。
 
-- `rice_portions`（本人のご飯量g、同じspaceで読め本人だけ変更）、`meal_histories`（食べた日・作った人・冪等キー（spaceごとに一意）・料理名と各自の栄養の写し・在庫で減らせなかった材料）、`recipe_histories.meal_history_id`
+- `rice_portions`（ご飯の量g。行は利用者ごとだが、2026-10-08以降はふたり共通の設定として扱う。同じspaceで読め本人の行だけ変更）、`meal_histories`（食べた日・作った人・冪等キー（spaceごとに一意）・料理名と各自の栄養の写し・在庫で減らせなかった材料）、`recipe_histories.meal_history_id`
 - 関数（`SECURITY DEFINER`・自分のspaceを確認）：`complete_meal_set(meal_set, key)`（献立セットの行ロック、冪等キー・作った済みなら何もしない、食事履歴・調理履歴・在庫の減算（`private.consume_recipe`→`inventory_consume`、理由COOKED）・献立セットを1 transactionで。全部作ったら週をCOMPLETED。初めて作った料理のIDを返す）、`complete_free_meal`（余裕日、advisory lockで冪等）、`swap_meal_set_dish`（楽観ロック・同じ種類のREADYだけ・作った後は不可）
 - 栄養の写し：作った時点のレシピの1人前の値と各自のご飯量を、DB内の`private.meal_nutrition`で算出（クライアントの値は受け取らない）。エネルギー・PFCのどれかが無い料理は推測せず未登録として残す。余裕日は2人分・READYのレシピのみ
 
@@ -176,15 +172,15 @@ migration: `supabase/migrations/20261005090000_create_food_composition.sql`。�
 - レシピの1人前は`lib/nutrition/recipe.ts`で計算し、手入力が無いレシピだけ`nutrition_source = CALCULATED`で保存（レシピ保存時・材料の対応付けを変えた時）。換算できない材料があれば保存しない（古い計算値は消す）
 - `rice_nutrition_per_100g(food_number default '01088')`、`private.meal_nutrition`を置き換えて作ったときの栄養の写しにご飯を加える
 
-## 確定済みschema: 体重とバックアップ（Gate 8）
+## 確定済みschema: 記録とバックアップ（Gate 8）
 
-migration: `supabase/migrations/20261006090000_create_weight_records.sql`、`20261006100000_create_backup_snapshot.sql`。テスト: `supabase/tests/database/weight_records.test.sql`、`backup_snapshot.test.sql`、`tests/unit/records-summary.test.ts`、`tests/unit/backup-core.test.ts`、CIの復元テスト（`scripts/backup/roundtrip-check.mts`）。
+migration: `20261006100000_create_backup_snapshot.sql`と、体重の削除・バックアップ対象の見直しを行った`20261009090000_remove_login_and_weight.sql`。テスト: `supabase/tests/database/backup_snapshot.test.sql`、`tests/unit/records-summary.test.ts`、`tests/unit/backup-core.test.ts`、CIの復元テスト（`scripts/backup/roundtrip-check.mts`）。
 
-- `weight_records`（user_id既定`auth.uid()`、measured_on、weight_kg 20〜300・小数1桁、`(user_id, measured_on)` unique）。`couple_space_id`を持たず、policyは本人の行だけselect/insert/update/delete。Realtimeのpublicationに入れない。同じ日の入力は上書き（upsert）。利用者の書き込みは未来日と366日より前をtriggerで拒否（service roleの復元は対象外）
-- 記録画面の週平均夕食カロリーは`meal_histories.nutrition_per_person`の本人の値のうち完全なものだけで平均する（`lib/records/summary.ts`）
-- バックアップ（`lib/backup/core.mts`）はservice role専用のDB関数`public.backup_snapshot()`で全対象テーブルを1つのSQL文（同じスナップショット）から主キー順に読み、gzip JSONでprivate Blobへ保存。対象外：`private.pin_credentials`・`login_throttles`・`recipe_import_logs`・auth.users・画像ファイル。復元は空のprojectへ外部キーの親から入れ、`recommendation_runs.seq`（常に生成されるidentity）は外して元の順に採番し直す
+- 体重（`public.weight_records`と`private.check_weight_record_date()`）は2026-10-08に削除した。記録画面（`/records`）に残るのは「夕食のカロリー（週平均）」と「食事の履歴」の2つだけ
+- 週平均夕食カロリーは`meal_histories.nutrition_per_person`のうち完全な値だけで平均する（`lib/records/summary.ts`）
+- バックアップ（`lib/backup/core.mts`）はservice role専用のDB関数`public.backup_snapshot()`で全対象テーブルを1つのSQL文（同じスナップショット）から主キー順に読み、gzip JSONでprivate Blobへ保存。対象テーブルは**20個**（`BACKUP_TABLES`の最後は`rice_portions`）。対象外：`recipe_import_logs`・auth.users・画像ファイル。復元は空のprojectへ外部キーの親から入れ、`recommendation_runs.seq`（常に生成されるidentity）は外して元の順に採番し直す
 
 ## 後続で必要になる設計事項
 
-- 初期2人のAuth account・profile登録は後続のbootstrap作業（Gate 1.3）で管理者権限により行う。
+- Auth account・profileの登録はbootstrap作業（`scripts/auth/bootstrap-couple.mts`）で管理者権限により行う。ログイン画面が無いためアカウントは1人だけで足りる（スクリプトは1人または2人を受け付ける）。
 - `profiles`のUPDATE（表示名変更）を許す場合は、列単位のGRANTとpolicyを別migrationで追加する。

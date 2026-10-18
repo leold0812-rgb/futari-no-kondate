@@ -114,20 +114,19 @@ describe("一覧の並べ替えと検索語", () => {
     tags: [],
     imagePath: null,
     imageUrl: null,
-    myFavorite: false,
-    partnerFavorite: false,
+    favorite: false,
   };
   const recipes = [
-    { ...base, id: "a", name: "さばの味噌煮", cookingMinutes: 30, createdAt: "2026-09-01", myRating: "NORMAL" as const, partnerRating: null },
-    { ...base, id: "b", name: "親子丼", cookingMinutes: 15, createdAt: "2026-09-03", myRating: "MAKE_AGAIN" as const, partnerRating: "MAKE_AGAIN" as const },
-    { ...base, id: "c", name: "カレー", cookingMinutes: null, createdAt: "2026-09-02", myRating: "NEVER_AGAIN" as const, partnerRating: null },
+    { ...base, id: "a", name: "さばの味噌煮", cookingMinutes: 30, createdAt: "2026-09-01", rating: "NORMAL" as const },
+    { ...base, id: "b", name: "親子丼", cookingMinutes: 15, createdAt: "2026-09-03", rating: "MAKE_AGAIN" as const },
+    { ...base, id: "c", name: "カレー", cookingMinutes: null, createdAt: "2026-09-02", rating: "NEVER_AGAIN" as const },
   ];
 
   it("新しい順・評価順・時間順", () => {
     expect(sortRecipes(recipes, "new").map((r) => r.id)).toEqual(["b", "c", "a"]);
     expect(sortRecipes(recipes, "rating").map((r) => r.id)).toEqual(["b", "a", "c"]);
     expect(sortRecipes(recipes, "quick").map((r) => r.id)).toEqual(["b", "a", "c"]);
-    expect(ratingScore(recipes[1])).toBe(4);
+    expect(ratingScore(recipes[1])).toBe(2);
   });
 
   it("検索語からフィルター構文の特別な文字を除く", () => {

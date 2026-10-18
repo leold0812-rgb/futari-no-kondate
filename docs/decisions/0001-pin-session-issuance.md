@@ -1,8 +1,10 @@
 # ADR 0001: PIN認証後のSupabase Auth session発行方式
 
-- 状態: 承認済み（2026-09-27、ユーザー承認。hosted Developmentでの確認は未実施）
-- 日付: 2026-09-26
-- 関連: `docs/architecture.md`「認証案」、`docs/development-plan.md` Gate 1.2 / 1.4、PR #4
+- 状態: 一部取り消し（2026-10-08、[ADR 0002](0002-remove-login.md)）。PINの検証・試行制限はやめたが、**サーバー限定の`generateLink` + `verifyOtp`によるsession発行はそのまま使っている**
+- 日付: 2026-09-26（承認 2026-09-27、ユーザー承認。hosted Developmentでの確認は未実施）
+- 関連: `docs/architecture.md`「ログインなしで使う」、`docs/development-plan.md` Gate 1.2 / 1.4、PR #4
+
+> 2026-10-08の追記：利用者の指示でログイン画面・PIN・試行制限を削除した（[ADR 0002](0002-remove-login.md)）。以下の「決定」のうち1（PINの検証と試行制限）は無効で、2〜6（`generateLink` + `verifyOtp`、`hashed_token`をサーバー内で完結、パスワード無しのAuthアカウント、メールプロバイダー無効）は現在も有効。検証結果の表と「検討した代替案」は当時の記録としてそのまま残す。
 
 ## 背景
 

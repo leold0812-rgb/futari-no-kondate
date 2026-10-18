@@ -94,20 +94,20 @@ describe("レシピの保存と共有", () => {
 
   it("保存したレシピは同じspaceの2人が読め、別spaceからは見えない", async () => {
     recipeId = await saveRecipe(a.client, null, recipe());
-    const fromB = await getRecipeDetail(b.client, b.userId, recipeId);
+    const fromB = await getRecipeDetail(b.client, recipeId);
     expect(fromB?.name).toBe("鶏の照り焼き");
     expect(fromB?.status).toBe("READY");
     expect(fromB?.ingredients.map((i) => [i.rawName, i.quantity, i.unit])).toEqual([
       ["鶏もも肉", 300, "g"],
       ["醤油", 2, "大さじ"],
     ]);
-    expect(await getRecipeDetail(d.client, d.userId, recipeId)).toBeNull();
-    expect(await listRecipes(d.client, d.userId)).toHaveLength(0);
+    expect(await getRecipeDetail(d.client, recipeId)).toBeNull();
+    expect(await listRecipes(d.client)).toHaveLength(0);
   });
 
   it("編集で材料を置き換え、材料が無ければ下書きになる", async () => {
     await saveRecipe(b.client, recipeId, recipe({ name: "照り焼き（改）", ingredients: [] }));
-    const detail = await getRecipeDetail(a.client, a.userId, recipeId);
+    const detail = await getRecipeDetail(a.client, recipeId);
     expect(detail?.name).toBe("照り焼き（改）");
     expect(detail?.status).toBe("DRAFT");
     expect(detail?.ingredients).toHaveLength(0);
@@ -116,33 +116,36 @@ describe("レシピの保存と共有", () => {
 
   it("別spaceの利用者は上書きできない", async () => {
     await expect(saveRecipe(d.client, recipeId, recipe({ name: "hacked" }))).rejects.toThrow();
-    expect((await getRecipeDetail(a.client, a.userId, recipeId))?.name).toBe("鶏の照り焼き");
+    expect((await getRecipeDetail(a.client, recipeId))?.name).toBe("鶏の照り焼き");
   });
 
   it("料理名・材料名で検索でき、絞り込み・評価・お気に入りが反映される", async () => {
     const soupId = await saveRecipe(a.client, null, recipe({ name: "豆腐の味噌汁", dishType: "SOUP", mainCategory: null, ingredients: [{ rawName: "絹豆腐", quantity: 0.5, unit: "丁", note: null, isMain: true }] }));
-    expect((await listRecipes(a.client, a.userId, { q: "照り" })).map((r) => r.id)).toEqual([recipeId]);
-    expect((await listRecipes(a.client, a.userId, { q: "豆腐" })).map((r) => r.id)).toEqual([soupId]);
-    expect((await listRecipes(a.client, a.userId, { dishType: "SOUP" })).map((r) => r.id)).toEqual([soupId]);
-    expect((await listRecipes(a.client, a.userId, { tag: "高タンパク" })).length).toBe(2);
+    expect((await listRecipes(a.client, { q: "照り" })).map((r) => r.id)).toEqual([recipeId]);
+    expect((await listRecipes(a.client, { q: "豆腐" })).map((r) => r.id)).toEqual([soupId]);
+    expect((await listRecipes(a.client, { dishType: "SOUP" })).map((r) => r.id)).toEqual([soupId]);
+    expect((await listRecipes(a.client, { tag: "高タンパク" })).length).toBe(2);
 
     await setRating(a.client, a.userId, recipeId, "MAKE_AGAIN");
     await setRating(b.client, b.userId, recipeId, "NORMAL");
     await setFavorite(b.client, b.userId, soupId, true);
-    const fromA = await listRecipes(a.client, a.userId, { sort: "rating" });
-    expect(fromA[0]).toMatchObject({ id: recipeId, myRating: "MAKE_AGAIN", partnerRating: "NORMAL" });
-    expect((await listRecipes(b.client, b.userId, { favoriteOnly: true })).map((r) => r.id)).toEqual([soupId]);
-    expect((await listRecipes(a.client, a.userId, { favoriteOnly: true })).length).toBe(0);
+    const fromA = await listRecipes(a.client, { sort: "rating" });
+    // 評価・お気に入りはふたり共通。どちらが付けた行でもこのレシピの評価として読む
+    expect(fromA[0]).toMatchObject({ id: recipeId, rating: expect.stringMatching(/MAKE_AGAIN|NORMAL/) });
+    // bが付けたお気に入りも、aの画面に出る（ふたり共通）
+    expect((await listRecipes(b.client, { favoriteOnly: true })).map((r) => r.id)).toEqual([soupId]);
+    expect((await listRecipes(a.client, { favoriteOnly: true })).map((r) => r.id)).toEqual([soupId]);
 
     await setRating(a.client, a.userId, recipeId, null);
-    expect((await getRecipeDetail(a.client, a.userId, recipeId))?.myRating).toBeNull();
+    await setRating(b.client, b.userId, recipeId, null);
+    expect((await getRecipeDetail(a.client, recipeId))?.rating).toBeNull();
   });
 
   it("論理削除したレシピは一覧・詳細に出ない", async () => {
     const tempId = await saveRecipe(a.client, null, recipe({ name: "削除テスト" }));
     await softDeleteRecipe(b.client, tempId);
-    expect(await getRecipeDetail(a.client, a.userId, tempId)).toBeNull();
-    expect((await listRecipes(a.client, a.userId)).some((r) => r.id === tempId)).toBe(false);
+    expect(await getRecipeDetail(a.client, tempId)).toBeNull();
+    expect((await listRecipes(a.client)).some((r) => r.id === tempId)).toBe(false);
   });
 
   it("画像は自分のspaceのフォルダにだけ保存でき、同じspaceの相手は一時URLで読める", async () => {

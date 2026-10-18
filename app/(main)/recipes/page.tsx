@@ -27,7 +27,7 @@ function pick<T extends string>(value: string | string[] | undefined, allowed: r
 }
 
 export default async function RecipesPage({ searchParams }: PageProps<"/recipes">) {
-  const member = await requireMember();
+  await requireMember();
   const params = await searchParams;
   const filters: Filters = {
     q: typeof params.q === "string" ? params.q.slice(0, 40) : undefined,
@@ -39,7 +39,7 @@ export default async function RecipesPage({ searchParams }: PageProps<"/recipes"
     sort: pick<RecipeSort>(params.sort, RECIPE_SORTS) ?? "new",
   };
   const supabase = await createSupabaseServerClient();
-  const recipes = await listRecipes(supabase, member.userId, filters);
+  const recipes = await listRecipes(supabase, filters);
   const hasConditions = Boolean(filters.q || filters.dishType || filters.mainCategory || filters.cuisine || filters.tag || filters.favoriteOnly);
 
   return (

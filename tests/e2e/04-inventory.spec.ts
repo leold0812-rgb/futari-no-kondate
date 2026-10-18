@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MEMBER_1, MEMBER_2, PIN_1, PIN_2, login, snap } from "./helpers";
+import { snap } from "./helpers";
 
 function daysAgo(days: number): string {
   const date = new Date(Date.now() + 9 * 3600_000 - days * 86_400_000);
@@ -8,7 +8,6 @@ function daysAgo(days: number): string {
 
 test.describe.serial("在庫（Gate 4）", () => {
   test("手で在庫を追加でき、保存目安が近いものは「そろそろ使いたい」に出る", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/inventory");
     await expect(page.getByText("在庫はまだありません")).toBeVisible();
 
@@ -31,8 +30,7 @@ test.describe.serial("在庫（Gate 4）", () => {
     await snap(page, "30-inventory");
   });
 
-  test("数量の補正と使い切りができ、相手の画面にも反映される", async ({ page }) => {
-    await login(page, MEMBER_2, PIN_2);
+  test("数量の補正と使い切りができる", async ({ page }) => {
     await page.goto("/inventory");
     const onion = page.getByRole("listitem").filter({ hasText: "玉ねぎ" }).first();
     await onion.getByText("数量を直す").click();
@@ -47,7 +45,6 @@ test.describe.serial("在庫（Gate 4）", () => {
   });
 
   test("材料の設定で保存目安を変えられる", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/inventory/ingredients");
     await page.getByLabel("玉ねぎの保存目安（日）").fill("14");
     await page.getByRole("listitem").filter({ hasText: "玉ねぎ" }).getByRole("button", { name: "保存" }).click();

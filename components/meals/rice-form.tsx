@@ -7,13 +7,13 @@ import { controlClassName } from "@/components/ui/field";
 
 type State = { error?: string; ok?: string };
 
-/** 自分のご飯の量（g）。本人だけが変更できる */
+/** ご飯の量（g）。ふたり共通の設定 */
 export function RiceForm({ action, initialGrams }: { action: (s: State, f: FormData) => Promise<State>; initialGrams: number | null }) {
   const [state, formAction, pending] = useActionState(action, {});
   return (
     <form action={formAction} style={{ display: "grid", gap: 8 }}>
       <label htmlFor="rice-grams" style={{ fontWeight: 700 }}>
-        自分のご飯（g）
+        1人分のご飯（g）
       </label>
       <input
         id="rice-grams"

@@ -18,9 +18,8 @@ iPhone PWA
 
 ```text
 app/
-  (auth)/login/
   (main)/home/ recipes/ inventory/ shopping/ records/
-  api/import-recipe/ api/cron/backup/
+  api/auth/start/ api/import-recipe/ api/cron/backup/
 components/
   ui/ navigation/ recipes/ weekly-plan/ inventory/ shopping/
 lib/
@@ -45,17 +44,21 @@ docs/
 - レシピ取得は `URL検証 → 制限付きfetch → 本文抽出 → AI構造化 → schema検証 → 確認 → 保存` とする。AI出力を直接DBへ保存しない。
 - URLのみ保存する失敗状態を正式な状態として持ち、再試行はユーザー操作で行う。
 
-## 認証案
+## ログインなしで使う（2026-10-08の変更）
 
-画面は2名の表示名から選択し、個人PINを入力する。表示名の選択はログイン先を選ぶ操作であり、本人確認には使わない。内部では各人に固定のSupabase Authユーザーを割り当て、新規登録は許可しない。Supabase Auth資格情報はAuthにのみ持たせる。PINは平文で保存せず、プロフィール情報へ複製しない。
+利用者の指示で**ログイン画面・PIN・試行制限をやめた**。URLを開けばそのまま使え、データはふたりで共有する1つのものとして扱う（[ADR 0002](decisions/0002-remove-login.md)。従来のPIN方式は[ADR 0001](decisions/0001-pin-session-issuance.md)に残す）。
 
-ユーザー決定（2026-09-26）：短い数字PINを使う。PINをSupabase Auth passwordとしてブラウザから直接送る実装にはしない。Supabase Auth endpointはアプリを通さず直接呼べるため、アプリrouteだけに置いたlockoutを迂回できる。
+仕組みは次のとおり。
 
-PINはサーバー側で検証し、アカウント単位と送信元単位の永続的な試行制限を適用してからSupabase Auth sessionを発行する。PINそのものを保存・ログ出力しない。Auth session発行はSupabase公式APIで安全に成立することをDevelopment環境の小さなspikeで確認する。Admin/secret keyを使う場合はserver-only routeに限定し、ブラウザへ返さない。公式APIで安全なsession発行方法を確認できない場合は独自JWTや直接password loginへ切り替えず、方式の再検討を報告する。
+1. `proxy.ts`（このリポジトリではミドルウェアを`middleware.ts`ではなく`proxy.ts`という名前で置く）がSupabase Auth sessionを更新する。sessionが無ければ`/api/auth/start`へ転送する。
+2. `/api/auth/start`（`app/api/auth/start/route.ts`）はサーバーだけが持つsecret keyで`auth.admin.generateLink({ type: "magiclink" })`を呼び、得た`hashed_token`を同じリクエスト内の`verifyOtp`でsessionのcookieへ書き、元の画面へ戻す（`lib/auth/auto-session.ts`）。メールは送られず、`hashed_token`はブラウザ・ログに出さない。
+3. session発行の相手は`profiles`を`created_at`の古い順に並べた最初の1件。アカウントは1つだけ作るのが既定で、アプリはその1人としてDBへアクセスする。
+4. 無限に転送し続けないよう、`kondate-session-tried`という60秒で消えるcookieを1度だけ置く。発行できないときは日本語で理由を説明する503ページを返す（アカウント未登録・設定不足・一時的な不調）。
+5. sessionが無くても開けるpathは`/api/auth/start`と`/offline`だけ（`lib/auth/paths.ts`の`PUBLIC_PATHS`）。
 
-**spike結果（2026-09-26、[ADR 0001](decisions/0001-pin-session-issuance.md)）：** サーバー限定の`generateLink` + `verifyOtp`でローカルSupabase上のsession発行・RLS連携・回避拒否を確認した。hosted Developmentでの確認は未実施。
+**RLSのpolicyとgrantは一切変えていない。** DBから見れば今までどおり「ログイン済みの利用者1人」としての読み書きで、anonへ開放したわけではない。service role keyはserver-onlyのRoute Handlerだけで使い、ブラウザへ返さない。
 
-Supabase Authの標準レート制限は主にIP単位で、token endpointにはアプリ独自のユーザー単位lockoutを代替する機能がない。[Auth rate limits](https://supabase.com/docs/guides/auth/rate-limits)。Admin `generateLink`はリンク/hashを生成し、`verifyOtp`でhashを使ってsessionを得るAPIがあるが、PIN認証後のsession発行に用いる具体的な構成はspikeで検証する。[generateLink](https://supabase.com/docs/reference/javascript/auth-admin-generatelink) / [verifyOtp](https://supabase.com/docs/reference/javascript/auth-verifyotp)
+**変わったセキュリティ上の性質：URLを知っている人は誰でも読み書きできる。** 利用者が「鍵を完全になくす」ことを選んだ結果で、URLそのものが唯一の防壁になる。URLを共有しない運用が前提になる。
 
 Next.jsの認証セッションはcookieベースのSupabase SSR方式を採用する。`@supabase/ssr`は現時点でbetaのため、導入時にAPI差分を公式文書で確認しversionを固定する。セッション更新が起こる認証済みrouteではISR/CDN cacheを使わない。
 
@@ -77,12 +80,11 @@ Vercelは1つのproject内で組み込みのDevelopment / Preview / Production�
 
 | リスク | 対策 |
 |---|---|
-| カスタムPINによる認証低下 | Supabase Auth、6桁以上、rate limit、RLSを併用 |
+| URLを知る第三者の読み書き | ログイン画面をやめたため防げない（利用者の選択）。URLを共有しない、検索避け（`noindex`）、session発行は`/api/auth/start`だけに限定する |
 | URL取得によるSSRF/巨大応答 | 宛先検証、DNS/redirect再検証、timeout、容量・Content-Type制限 |
 | Instagram取得の不安定さ | 対応可否を保証せず、URLのみ保存と手入力修正を常設 |
 | 2人同時操作の二重更新 | 一意制約、transaction、idempotency key、DB側数量更新 |
 | 単位誤換算 | 次元・変換係数が確定した単位だけ自動処理 |
-| 体重漏えい | owner-only RLS、共有queryから分離、Realtime対象外 |
 | バックアップの機密性 | private Blob、署名/secret検証、保持期限、復元テスト |
 | SDKの破壊的変更 | betaのSupabase SSR APIを固定し、upgradeを独立作業にする |
 

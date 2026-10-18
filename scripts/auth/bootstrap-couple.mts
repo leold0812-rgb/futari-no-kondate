@@ -1,5 +1,6 @@
 /**
- * 固定2人のSupabase Authアカウント・CoupleSpace・profileを登録する（Gate 1.3）。
+ * Supabase Authアカウント・CoupleSpace・profileを登録する（Gate 1.3）。
+ * ログイン画面をやめたため、必要なのは1人分だけ（アプリは最初のprofileを使う）。
  *
  * 使い方（手順は docs/runbooks/hosted-development-setup.md）:
  *   node --env-file=.env.bootstrap.local scripts/auth/bootstrap-couple.mts --project-ref <ref>          # dry-run
@@ -7,8 +8,8 @@
  *
  * 必要な環境変数（値はGit管理外の .env.*.local に置く。表示名などの個人情報をリポジトリへ書かない）:
  *   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
- *   BOOTSTRAP_MEMBER_1_EMAIL, BOOTSTRAP_MEMBER_1_DISPLAY_NAME,
- *   BOOTSTRAP_MEMBER_2_EMAIL, BOOTSTRAP_MEMBER_2_DISPLAY_NAME
+ *   BOOTSTRAP_MEMBER_1_EMAIL, BOOTSTRAP_MEMBER_1_DISPLAY_NAME
+ *   （BOOTSTRAP_MEMBER_2_* を入れた場合だけ2人目も登録する）
  */
 import { createClient } from "@supabase/supabase-js";
 import { parseArgs } from "node:util";
@@ -39,10 +40,13 @@ async function main() {
   const keyError = checkAdminKey(key);
   if (keyError) fail(keyError);
 
-  const members: MemberConfig[] = [1, 2].map((n) => ({
-    email: process.env[`BOOTSTRAP_MEMBER_${n}_EMAIL`] ?? "",
-    displayName: process.env[`BOOTSTRAP_MEMBER_${n}_DISPLAY_NAME`] ?? "",
-  }));
+  const members: MemberConfig[] = [1, 2]
+    .map((n) => ({
+      email: process.env[`BOOTSTRAP_MEMBER_${n}_EMAIL`] ?? "",
+      displayName: process.env[`BOOTSTRAP_MEMBER_${n}_DISPLAY_NAME`] ?? "",
+    }))
+    // 2人目は任意（未設定なら1人だけ登録する）
+    .filter((member, index) => index === 0 || member.email.trim() !== "" || member.displayName.trim() !== "");
 
   console.log(`対象: ${values["project-ref"]}（${values.apply ? "実行" : "dry-run"}）`);
   const admin = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
