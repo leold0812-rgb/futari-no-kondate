@@ -33,9 +33,9 @@ export const getCurrentMember = cache(async (): Promise<CurrentMember | null> =>
   };
 });
 
-/** 画面・Server Actionの入口で使う。未ログインならログイン画面へ送る */
+/** 画面・Server Actionの入口で使う。sessionが無ければ発行しなおす入口へ送る */
 export async function requireMember(): Promise<CurrentMember> {
   const member = await getCurrentMember();
-  if (!member) redirect("/login");
+  if (!member) redirect("/api/auth/start");
   return member;
 }

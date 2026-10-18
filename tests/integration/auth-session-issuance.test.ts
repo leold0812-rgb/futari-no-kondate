@@ -1,11 +1,12 @@
 /**
- * Gate 1.2 spike: PIN認証後にサーバーだけがSupabase Auth sessionを発行できるか。
+ * サーバーだけがSupabase Auth sessionを発行できることの検証。
+ * ログイン画面をやめた今は、/api/auth/start（lib/auth/auto-session.ts）がこの手順をそのまま使う。
  *
- * 検証する構成（Gate 1.4で実装する予定の形の最小再現）:
- *   1. （このspikeでは省略）サーバーがPINを検証し、試行制限を適用する
- *   2. サーバーが secret key で auth.admin.generateLink({ type: "magiclink" }) を呼び、hashed_token を得る
+ * 検証する構成:
+ *   1. サーバーが secret key で auth.admin.generateLink({ type: "magiclink" }) を呼び、hashed_token を得る
  *      （メールは送られない。hashed_tokenはブラウザへ返さない）
- *   3. サーバーが anon key のSSR clientで verifyOtp({ token_hash }) を呼び、sessionをcookieへ書く
+ *   2. サーバーが anon key のSSR clientで verifyOtp({ token_hash }) を呼び、sessionをcookieへ書く
+ *   3. ブラウザ側（anon key）からは同じ発行ができない
  *
  * 対象はローカルのSupabase（`supabase start`）のみ。hosted project（Development / Production）へは接続しない。
  * 必要な環境変数はローカルの `supabase status -o env` の値（公開済みの既定鍵）から渡す。
@@ -202,7 +203,7 @@ describe("サーバーだけがsessionを発行できる（generateLink + verify
   describe("4. ブラウザ側（anon key）からの回避は成立しない", () => {
     const browser = () => createClient(url, anonKey, NO_SESSION_PERSISTENCE);
 
-    it("a. パスワード未設定のアカウントへ推測したPIN/パスワードでログインできない", async () => {
+    it("a. パスワード未設定のアカウントへ推測したパスワードでログインできない", async () => {
       for (const guess of ["000000", "123456", "111111"]) {
         const { data, error } = await browser().auth.signInWithPassword({ email: userA.email, password: guess });
         expect(error).not.toBeNull();
@@ -268,12 +269,12 @@ describe("サーバーだけがsessionを発行できる（generateLink + verify
     });
   });
 
-  it("5. Authアカウントにパスワード（PIN）は保存されない", async () => {
+  it("5. Authアカウントにパスワードは保存されない", async () => {
     const { data, error } = await admin.auth.admin.getUserById(userA.userId);
     expect(error).toBeNull();
     // Admin APIのレスポンスにパスワード/ハッシュ関連のフィールドが含まれない
     expect(JSON.stringify(data.user)).not.toMatch(/encrypted_password|password_hash/i);
-    // メール認証のprovider（PINではない）で作成されており、パスワード未設定のためパスワードログインは4-aで拒否された
+    // メール認証のproviderで作成されており、パスワード未設定のためパスワードログインは4-aで拒否された
     expect(data.user?.app_metadata?.provider).toBe("email");
   });
 });

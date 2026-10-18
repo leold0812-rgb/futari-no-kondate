@@ -1,7 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { CurrentMember } from "@/lib/auth/session";
-import type { MealHistoryRow, WeightPoint } from "@/lib/records/summary";
+import type { MealHistoryRow } from "@/lib/records/summary";
 
 /** 記録画面（Gate 8）。利用者のsession（RLS）で呼ぶ */
 
@@ -32,19 +31,4 @@ export async function getMealHistories(supabase: SupabaseClient, since: string):
       ),
     })),
   };
-}
-
-/**
- * 自分の体重だけを読む。RLSでも本人だけに制限されるが、共有データと混ざらないよう取得条件にも本人を明示する。
- * 体重はログ・共有API・Realtimeへ出さない。
- */
-export async function getMyWeights(supabase: SupabaseClient, me: CurrentMember, since: string): Promise<Loaded<WeightPoint[]>> {
-  const { data, error } = await supabase
-    .from("weight_records")
-    .select("measured_on, weight_kg")
-    .eq("user_id", me.userId)
-    .gte("measured_on", since)
-    .order("measured_on", { ascending: true });
-  if (error) return { ok: false };
-  return { ok: true, data: (data ?? []).map((r) => ({ measuredOn: r.measured_on as string, weightKg: Number(r.weight_kg) })) };
 }

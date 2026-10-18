@@ -27,16 +27,16 @@ function emptyBackup(): BackupFile {
 }
 
 describe("BACKUP_TABLES", () => {
-  it("体重を含み、PINの派生値・試行記録・取り込みログは含まない", () => {
+  it("体重・PINの派生値・試行記録・取り込みログは含まない", () => {
     const names = BACKUP_TABLES.map((t) => t.name as string);
-    expect(names).toContain("weight_records");
+    expect(names).not.toContain("weight_records");
     expect(names).not.toContain("pin_credentials");
     expect(names).not.toContain("login_throttles");
     expect(names).not.toContain("recipe_import_logs");
   });
 
   it("DB関数 backup_snapshot() と同じテーブルを同じ順・同じ主キーで読む", () => {
-    const sql = readFileSync(join(__dirname, "..", "..", "supabase", "migrations", "20261006100000_create_backup_snapshot.sql"), "utf8");
+    const sql = readFileSync(join(__dirname, "..", "..", "supabase", "migrations", "20261009090000_remove_login_and_weight.sql"), "utf8");
     const inSql = [...sql.matchAll(/'(\w+)', coalesce\(\(select jsonb_agg\(to_jsonb\(t\) order by ([^)]+)\) from public\.(\w+) as t\)/g)].map((m) => ({
       name: m[1],
       key: m[2].split(",").map((k) => k.trim().replace(/^t\./, "")),
@@ -73,7 +73,7 @@ describe("validateBackup", () => {
     expect(validateBackup({ ...emptyBackup(), format: "other" })).not.toBeNull();
     expect(validateBackup({ ...emptyBackup(), version: 2 })).not.toBeNull();
     const missing = emptyBackup() as unknown as { tables: Record<string, unknown> };
-    delete missing.tables.weight_records;
+    delete missing.tables.rice_portions;
     expect(validateBackup(missing)).not.toBeNull();
   });
 });

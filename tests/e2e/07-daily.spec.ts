@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MEMBER_1, PIN_1, login, snap } from "./helpers";
+import { snap } from "./helpers";
 import { seedMainRecipes } from "./seed";
 
 test.describe.serial("平日の献立と作った（Gate 7）", () => {
@@ -9,15 +9,14 @@ test.describe.serial("平日の献立と作った（Gate 7）", () => {
   });
 
   test("ご飯の量を設定できる", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/settings");
-    await page.getByLabel("自分のご飯（g）").fill("150");
+    await page.getByLabel("1人分のご飯（g）").fill("150");
     await page.getByRole("button", { name: "保存", exact: true }).click();
     await expect(page.getByText("ご飯の量を150gにしました。")).toBeVisible();
   });
 
   test("献立を開き、副菜を差し替え、作ったを記録して初回評価をつける", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
+    await page.goto("/");
     await expect(page.getByRole("heading", { level: 1, name: "今週の食卓" })).toBeVisible();
     await page.getByRole("listitem").filter({ hasText: /E2E/ }).first().getByRole("link").click();
     await expect(page).toHaveURL(/\/meals\//);
@@ -48,7 +47,6 @@ test.describe.serial("平日の献立と作った（Gate 7）", () => {
   });
 
   test("余裕日のごはんを提案し、作ったを記録できる", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/free-day");
     await expect(page.getByRole("heading", { level: 1, name: "余裕日のごはん" })).toBeVisible();
     await snap(page, "63-free-day");

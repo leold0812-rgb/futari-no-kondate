@@ -14,7 +14,6 @@ import {
   MAIN_CATEGORY_LABELS,
   RECIPE_STATUS_LABELS,
 } from "@/lib/recipes/constants";
-import { getPartner } from "@/lib/services/members";
 import { calculateForRecipe } from "@/lib/services/nutrition";
 import { getRecipeDetail } from "@/lib/services/recipes";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -28,13 +27,12 @@ function formatNutrition(value: number | null, unit: string) {
 }
 
 export default async function RecipeDetailPage({ params, searchParams }: PageProps<"/recipes/[id]">) {
-  const member = await requireMember();
+  await requireMember();
   const { id } = await params;
   const { notice } = await searchParams;
   const supabase = await createSupabaseServerClient();
-  const [recipe, partner, calculation] = await Promise.all([
-    getRecipeDetail(supabase, member.userId, id).catch(() => null),
-    getPartner(supabase, member),
+  const [recipe, calculation] = await Promise.all([
+    getRecipeDetail(supabase, id).catch(() => null),
     calculateForRecipe(supabase, id).catch(() => null),
   ]);
   if (!recipe) notFound();
@@ -112,10 +110,8 @@ export default async function RecipeDetailPage({ params, searchParams }: PagePro
         </h2>
         <PreferenceControls
           recipeId={recipe.id}
-          myRating={recipe.myRating}
-          partnerRating={recipe.partnerRating}
-          partnerName={partner?.displayName ?? null}
-          myFavorite={recipe.myFavorite}
+          rating={recipe.rating}
+          favorite={recipe.favorite}
           setRatingAction={setRatingAction}
           setFavoriteAction={setFavoriteAction}
         />

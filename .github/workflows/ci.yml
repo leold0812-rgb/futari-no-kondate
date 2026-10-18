@@ -108,7 +108,7 @@ jobs:
           docker ps -a
           docker logs supabase_db_futari-no-kondate --tail 100
 
-  # Gate 1.2 spike: PIN認証後にサーバーだけがAuth sessionを発行できるかの統合テスト。
+  # サーバーだけがAuth sessionを発行できることの統合テスト（/api/auth/start が使う仕組み）。
   # ランナー上のDockerでSupabaseのローカルスタック（Auth / API）を起動して検証する。hosted Supabaseには接続しない。
   # 使うキーは `supabase status` が出力するローカル専用の既定鍵で、GitHub Secretsは使わない。
   auth:
@@ -171,7 +171,7 @@ jobs:
             echo "SPIKE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-$SECRET_KEY}"
           } >> "$GITHUB_ENV"
 
-      - name: Integration tests (session issuance, bootstrap, PIN login, recipes)
+      - name: Integration tests (session issuance, bootstrap, recipes)
         run: npm run test:integration
 
       - name: Bootstrap CLI end-to-end (local only)
@@ -188,9 +188,6 @@ jobs:
           node scripts/auth/bootstrap-couple.mts --project-ref local --apply
           node scripts/auth/bootstrap-couple.mts --project-ref local --apply | tee "$RUNNER_TEMP/rerun.log"
           grep -q "変更なし" "$RUNNER_TEMP/rerun.log"
-          if [ "$SPIKE_EMAIL_PROVIDER" = "disabled" ]; then
-            node scripts/auth/smoke-session.mts --project-ref local
-          fi
 
       - name: Show container logs on failure
         if: failure()
@@ -199,7 +196,7 @@ jobs:
           docker logs supabase_auth_futari-no-kondate --tail 80
 
   # アプリ全体のE2E。ランナー上のDockerでローカルSupabaseを起動し、本番buildのNext.jsをPlaywright（Chromium・iPhone幅）で操作する。
-  # hosted Supabase・GitHub Secretsは使わない。PIN_PEPPERと2人のPINは実行ごとの使い捨て値。
+  # hosted Supabase・GitHub Secretsは使わない。ログイン画面は無いため、メンバーは1人だけbootstrapする。
   e2e:
     name: e2e / app flows
     runs-on: ubuntu-latest
@@ -207,12 +204,8 @@ jobs:
     env:
       DO_NOT_TRACK: "1"
       NEXT_TELEMETRY_DISABLED: "1"
-      E2E_MEMBER_1_NAME: E2E太郎
-      E2E_MEMBER_2_NAME: E2E花子
       BOOTSTRAP_MEMBER_1_EMAIL: member-1@futari-no-kondate.invalid
       BOOTSTRAP_MEMBER_1_DISPLAY_NAME: E2E太郎
-      BOOTSTRAP_MEMBER_2_EMAIL: member-2@futari-no-kondate.invalid
-      BOOTSTRAP_MEMBER_2_DISPLAY_NAME: E2E花子
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -246,29 +239,17 @@ jobs:
         run: |
           npx supabase status -o env > "$RUNNER_TEMP/supabase-local.env"
           set -a; . "$RUNNER_TEMP/supabase-local.env"; set +a
-          pin_pepper=$(openssl rand -hex 32)
           cron_secret=$(openssl rand -hex 24)
-          e2e_pin_1="$(shuf -i 100000-999999 -n 1)1"
-          e2e_pin_2="$(shuf -i 100000-999999 -n 1)2"
-          echo "::add-mask::$pin_pepper"
           echo "::add-mask::$cron_secret"
-          echo "::add-mask::$e2e_pin_1"
-          echo "::add-mask::$e2e_pin_2"
           {
             echo "NEXT_PUBLIC_SUPABASE_URL=${API_URL}"
             echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON_KEY:-$PUBLISHABLE_KEY}"
             echo "SUPABASE_SERVICE_ROLE_KEY=${SERVICE_ROLE_KEY:-$SECRET_KEY}"
-            echo "PIN_PEPPER=${pin_pepper}"
             echo "CRON_SECRET=${cron_secret}"
-            echo "E2E_PIN_1=${e2e_pin_1}"
-            echo "E2E_PIN_2=${e2e_pin_2}"
           } >> "$GITHUB_ENV"
 
-      - name: Bootstrap the two accounts and PINs
-        run: |
-          node scripts/auth/bootstrap-couple.mts --project-ref local --apply
-          printf '%s\n' "$E2E_PIN_1" | node scripts/auth/set-pin.mts --project-ref local --member 1 --pin-stdin
-          printf '%s\n' "$E2E_PIN_2" | node scripts/auth/set-pin.mts --project-ref local --member 2 --pin-stdin
+      - name: Bootstrap the member
+        run: node scripts/auth/bootstrap-couple.mts --project-ref local --apply
 
       - name: Build
         run: npm run build

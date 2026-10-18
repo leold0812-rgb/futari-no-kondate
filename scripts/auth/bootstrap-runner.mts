@@ -131,7 +131,7 @@ export async function runBootstrap(options: {
   }
   for (const warning of plan.warnings) log(`注意: ${warning}`);
   if (plan.status === "noop") {
-    log("変更なし: 2人のAuthユーザーと同じspaceのprofileがそろっています。");
+    log("変更なし: Authユーザーと同じspaceのprofileがそろっています。");
     return { outcome: "noop", plan };
   }
 

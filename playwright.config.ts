@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 /**
  * E2E（CIのローカルSupabase＋本番build）。hosted Supabaseには接続しない。
- * 実行前提：`npm run build` 済み、ローカルSupabaseにbootstrap済みの2人（PINは E2E_PIN_1 / E2E_PIN_2）。
+ * 実行前提：`npm run build` 済み、ローカルSupabaseにbootstrap済みのメンバー1人（ログイン画面は無い）。
  * DBの状態を共有するため直列に実行する。specはファイル名の番号順（01-, 02-, …）に流れる前提で書いている。
  */
 const port = Number(process.env.E2E_PORT ?? 3000);
@@ -32,7 +32,7 @@ export default defineConfig({
   projects: [{ name: "mobile-chromium", use: { browserName: "chromium" } }],
   webServer: {
     command: `npm run start -- -p ${port} -H 127.0.0.1`,
-    url: `${baseURL}/login`,
+    url: `${baseURL}/offline`,
     reuseExistingServer: false,
     timeout: 120_000,
   },

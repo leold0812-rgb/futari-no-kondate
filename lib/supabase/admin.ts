@@ -5,7 +5,7 @@ import { readServerEnv } from "@/lib/env/server";
 
 /**
  * secret（service role）keyを使う管理用client。RLSを迂回するため、用途を限定する：
- *   - ログイン画面の表示名一覧、PIN検証と試行制限（public.pin_login_*）、session発行（generateLink）
+ *   - 画面を開いたときのsession発行（lib/auth/auto-session.ts。generateLink）
  *   - URL取り込みの上限の予約・完了（public.begin/finish_recipe_import。sessionで確かめた利用者とspaceだけを渡す）
  *   - バックアップCron
  * 利用者の操作によるデータ読み書きには使わない（それらは createSupabaseServerClient + RLS）。

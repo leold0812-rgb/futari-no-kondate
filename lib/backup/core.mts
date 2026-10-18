@@ -4,11 +4,9 @@
  *
  * 対象（docs/product-spec.md 合理的仮定7「DBの論理データとStorage参照情報」）:
  *   - publicスキーマの利用データ（料理画像は Storage のpath＝参照情報だけ。画像そのものは二重保存しない）
- *   - 体重も含む（本人たちのデータを失わないため。保存先は非公開のBlob store）
  * 対象外:
- *   - private.pin_credentials / login_throttles（PINの派生値と試行記録。復元後はPINを設定し直す）
  *   - recipe_import_logs（取り込み回数の運用記録）
- *   - auth.users（Supabase Authが管理。復元先に同じ2人のアカウントが必要。IDが違う場合は対応表で置き換える）
+ *   - auth.users（Supabase Authが管理。復元先に同じIDのアカウントが必要。IDが違う場合は対応表で置き換える）
  * 復元で変わるもの:
  *   - recommendation_runs.seq（採番し直す。順は保つ）、couple_spaces.updated_at（2人上限の仕組みが更新する。管理用の列）
  */
@@ -41,7 +39,6 @@ export const BACKUP_TABLES = [
   { name: "shopping_items", key: ["id"] },
   { name: "shopping_category_orders", key: ["couple_space_id", "category"] },
   { name: "rice_portions", key: ["user_id"] },
-  { name: "weight_records", key: ["id"] },
 ] as const;
 
 export type TableName = (typeof BACKUP_TABLES)[number]["name"];

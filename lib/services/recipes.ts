@@ -25,10 +25,9 @@ export type RecipeSummary = {
   imagePath: string | null;
   imageUrl: string | null;
   createdAt: string;
-  myRating: Rating | null;
-  partnerRating: Rating | null;
-  myFavorite: boolean;
-  partnerFavorite: boolean;
+  /** 評価・お気に入りはふたり共通（ログインをやめたため、誰が付けたかは区別しない） */
+  rating: Rating | null;
+  favorite: boolean;
 };
 
 export type RecipeIngredient = {
@@ -104,27 +103,18 @@ export async function signImagePaths(supabase: SupabaseClient, paths: (string | 
   return result;
 }
 
-async function loadPreferences(supabase: SupabaseClient, recipeIds: string[], userId: string) {
-  const ratings = new Map<string, { mine: Rating | null; partner: Rating | null }>();
-  const favorites = new Map<string, { mine: boolean; partner: boolean }>();
+/** 評価・お気に入りはふたり共通。誰が付けた行でも「このレシピの評価」として扱う */
+async function loadPreferences(supabase: SupabaseClient, recipeIds: string[]) {
+  const ratings = new Map<string, Rating>();
+  const favorites = new Set<string>();
   if (recipeIds.length === 0) return { ratings, favorites };
 
   const [{ data: ratingRows }, { data: favoriteRows }] = await Promise.all([
-    supabase.from("recipe_ratings").select("recipe_id, user_id, rating").in("recipe_id", recipeIds),
-    supabase.from("recipe_favorites").select("recipe_id, user_id").in("recipe_id", recipeIds),
+    supabase.from("recipe_ratings").select("recipe_id, rating").in("recipe_id", recipeIds),
+    supabase.from("recipe_favorites").select("recipe_id").in("recipe_id", recipeIds),
   ]);
-  for (const row of ratingRows ?? []) {
-    const entry = ratings.get(row.recipe_id) ?? { mine: null, partner: null };
-    if (row.user_id === userId) entry.mine = row.rating as Rating;
-    else entry.partner = row.rating as Rating;
-    ratings.set(row.recipe_id, entry);
-  }
-  for (const row of favoriteRows ?? []) {
-    const entry = favorites.get(row.recipe_id) ?? { mine: false, partner: false };
-    if (row.user_id === userId) entry.mine = true;
-    else entry.partner = true;
-    favorites.set(row.recipe_id, entry);
-  }
+  for (const row of ratingRows ?? []) ratings.set(row.recipe_id, row.rating as Rating);
+  for (const row of favoriteRows ?? []) favorites.add(row.recipe_id);
   return { ratings, favorites };
 }
 
@@ -133,8 +123,6 @@ function toSummary(
   prefs: Awaited<ReturnType<typeof loadPreferences>>,
   images: Map<string, string>,
 ): RecipeSummary {
-  const rating = prefs.ratings.get(row.id);
-  const favorite = prefs.favorites.get(row.id);
   return {
     id: row.id,
     name: row.name,
@@ -147,10 +135,8 @@ function toSummary(
     imagePath: row.image_path,
     imageUrl: row.image_path ? (images.get(row.image_path) ?? null) : null,
     createdAt: row.created_at,
-    myRating: rating?.mine ?? null,
-    partnerRating: rating?.partner ?? null,
-    myFavorite: favorite?.mine ?? false,
-    partnerFavorite: favorite?.partner ?? false,
+    rating: prefs.ratings.get(row.id) ?? null,
+    favorite: prefs.favorites.has(row.id),
   };
 }
 
@@ -159,11 +145,7 @@ export function sanitizeSearchTerm(value: string): string {
   return value.replace(/[%_\\,()"*:.]/g, " ").replace(/\s+/g, " ").trim().slice(0, 40);
 }
 
-export async function listRecipes(
-  supabase: SupabaseClient,
-  userId: string,
-  filters: RecipeFilters = {},
-): Promise<RecipeSummary[]> {
+export async function listRecipes(supabase: SupabaseClient, filters: RecipeFilters = {}): Promise<RecipeSummary[]> {
   let query = supabase.from("recipes").select(SUMMARY_COLUMNS).is("deleted_at", null).limit(500);
   if (filters.dishType) query = query.eq("dish_type", filters.dishType);
   if (filters.mainCategory) query = query.eq("main_category", filters.mainCategory);
@@ -191,7 +173,6 @@ export async function listRecipes(
     loadPreferences(
       supabase,
       rows.map((r) => r.id),
-      userId,
     ),
     signImagePaths(
       supabase,
@@ -199,12 +180,12 @@ export async function listRecipes(
     ),
   ]);
   let recipes = rows.map((row) => toSummary(row, prefs, images));
-  if (filters.favoriteOnly) recipes = recipes.filter((r) => r.myFavorite);
+  if (filters.favoriteOnly) recipes = recipes.filter((r) => r.favorite);
   return sortRecipes(recipes, filters.sort ?? "new");
 }
 
-export function ratingScore(recipe: Pick<RecipeSummary, "myRating" | "partnerRating">): number {
-  return (recipe.myRating ? RATING_SCORE[recipe.myRating] : 0) + (recipe.partnerRating ? RATING_SCORE[recipe.partnerRating] : 0);
+export function ratingScore(recipe: Pick<RecipeSummary, "rating">): number {
+  return recipe.rating ? RATING_SCORE[recipe.rating] : 0;
 }
 
 export function sortRecipes(recipes: RecipeSummary[], sort: RecipeSort): RecipeSummary[] {
@@ -224,7 +205,7 @@ export function sortRecipes(recipes: RecipeSummary[], sort: RecipeSort): RecipeS
   }
 }
 
-export async function getRecipeDetail(supabase: SupabaseClient, userId: string, recipeId: string): Promise<RecipeDetail | null> {
+export async function getRecipeDetail(supabase: SupabaseClient, recipeId: string): Promise<RecipeDetail | null> {
   const { data: row, error } = await supabase
     .from("recipes")
     .select(
@@ -242,7 +223,7 @@ export async function getRecipeDetail(supabase: SupabaseClient, userId: string, 
       .select("id, ingredient_id, raw_name, quantity, unit, note, is_main")
       .eq("recipe_id", recipeId)
       .order("sort_order"),
-    loadPreferences(supabase, [recipeId], userId),
+    loadPreferences(supabase, [recipeId]),
     signImagePaths(supabase, [row.image_path as string | null]),
   ]);
 

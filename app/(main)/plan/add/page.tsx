@@ -16,12 +16,12 @@ export const metadata: Metadata = { title: "レシピから追加 | ふたりの
 
 /** 候補に出なかった主菜を手動で追加する（「もう作らない」の料理も、手動なら追加できる：docs/recommendation.md） */
 export default async function AddCandidatePage({ searchParams }: PageProps<"/plan/add">) {
-  const member = await requireMember();
+  await requireMember();
   const week = resolvePlanWeek((await searchParams).week);
   const supabase = await createSupabaseServerClient();
   const plan = await getWeeklyPlan(supabase, await ensureWeeklyPlan(supabase, week));
   const chosen = new Set((plan?.candidates ?? []).filter((c) => c.decision === "ACCEPTED").map((c) => c.recipeId));
-  const recipes = (await listRecipes(supabase, member.userId, { dishType: "MAIN", sort: "rating" })).filter(
+  const recipes = (await listRecipes(supabase, { dishType: "MAIN", sort: "rating" })).filter(
     (r) => r.status === "READY" && !chosen.has(r.id),
   );
 
@@ -54,7 +54,7 @@ export default async function AddCandidatePage({ searchParams }: PageProps<"/pla
                 <p className={styles.rowName}>{r.name}</p>
                 <p className={styles.rowMeta}>
                   {r.cookingMinutes ? `約${r.cookingMinutes}分` : ""}
-                  {r.myRating === "NEVER_AGAIN" || r.partnerRating === "NEVER_AGAIN" ? "・「もう作らない」の評価あり" : ""}
+                  {r.rating === "NEVER_AGAIN" ? "・「もう作らない」の評価あり" : ""}
                 </p>
               </div>
               <form action={addManualAction.bind(null, plan.runId!, r.id, week)}>

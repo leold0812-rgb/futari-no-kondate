@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MEMBER_1, PIN_1, login, snap } from "./helpers";
+import { snap } from "./helpers";
 import { seedFood, seedMainRecipes } from "./seed";
 
 test.describe.serial("栄養の計算（Gate 2b）", () => {
@@ -10,7 +10,6 @@ test.describe.serial("栄養の計算（Gate 2b）", () => {
   });
 
   test("材料に食品と重さを設定すると、レシピの1人前の栄養が計算される", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/inventory/ingredients");
     await page.getByRole("listitem").filter({ hasText: "E2E栄養テストの材料" }).getByRole("link", { name: "栄養の設定" }).click();
     await page.getByLabel("食品名で検索").fill("E2Eテスト食品");

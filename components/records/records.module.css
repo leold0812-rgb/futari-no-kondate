@@ -11,71 +11,6 @@
   color: var(--color-text-muted);
 }
 
-.private {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
-
-.latest {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.latestValue {
-  font-size: 1.75rem;
-  font-weight: 700;
-}
-
-.chart {
-  margin: 0;
-}
-
-.chartSvg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.gridLine {
-  stroke: var(--color-border);
-  stroke-width: 1;
-}
-
-.axisLabel {
-  fill: var(--color-text-muted);
-  font-size: 10px;
-}
-
-.line {
-  fill: none;
-  stroke: var(--color-primary-strong);
-  stroke-width: 2;
-  stroke-linejoin: round;
-}
-
-.dot {
-  fill: var(--color-primary-strong);
-}
-
-.form {
-  display: grid;
-  gap: 8px;
-}
-
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.label {
-  display: grid;
-  gap: 4px;
-  font-weight: 700;
-}
-
 .weeks {
   display: grid;
   gap: 8px;
@@ -130,24 +65,4 @@
 .historyDate {
   color: var(--color-text-muted);
   font-size: 0.875rem;
-}
-
-.recent {
-  display: grid;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.recentItem {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  min-height: var(--tap-min);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.recentItem:last-child {
-  border-bottom: none;
 }

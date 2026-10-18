@@ -1,6 +1,6 @@
 # Development / Production 環境の設定手順
 
-更新日: 2026-09-26
+更新日: 2026-10-13（ログイン画面と体重の記録の削除を反映）
 
 この文書はGate 0-5の設定手順です。実際のSupabase/Vercel project作成や秘密値の登録は、各サービスのDashboardで行います。このリポジトリには実値を書きません。
 
@@ -27,7 +27,7 @@ SupabaseのPreview Branch機能は当面使いません。独立したDevelopmen
    - Node.js Versionは`24.x`（Vercel既定）。`package.json`の`engines.node`（`>=24`）もVercel上では最新24.xへ解決され、CI（`.nvmrc`）と一致する。[Supported Node.js versions](https://vercel.com/docs/functions/runtimes/node-js/node-js-versions)
    - Security設定の**Git Fork Protection**は有効（既定）のままにする。repositoryがpublicのため、forkからのPRは承認するまでdeployされず、環境変数が渡らない。[Deployment Authorizations for Forks](https://vercel.com/docs/git/vercel-for-github#deployment-authorizations-for-forks)
 4. VercelのProduction、Preview、Development環境変数を下表どおり設定する。
-5. Development projectへmigration適用・Auth設定・2人のアカウント登録を行う：[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)（ユーザーが実行）。
+5. Development projectへmigration適用・Auth設定・アカウント登録（1人）を行う：[hosted Developmentのセットアップ手順](runbooks/hosted-development-setup.md)（ユーザーが実行）。
 
 SupabaseのFree planで作れる無料projectは2つまで（Owner/Admin権限を持つ全organization合計）で、Development＋Productionで上限に達する。検証用に3つ目を作らない。[Billing on Supabase](https://supabase.com/docs/guides/platform/billing-on-supabase)
 
@@ -39,11 +39,10 @@ Supabaseのproject URLとpublishable keyは各projectのConnect/API Keys画面�
 |---|---|---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Dev URL | Supabase Dev URL | Supabase Prod URL | 公開値。`https://`を使用 |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Dev publishable key | Dev publishable key | Prod publishable key | 公開値。service roleは禁止 |
-| `SUPABASE_SERVICE_ROLE_KEY` | 未登録（ローカルは`.env.local`） | Dev secret key（Sensitive） | Prod secret key（Sensitive） | ログイン（PIN検証・session発行）とバックアップで使う。server-onlyの`lib/supabase/admin.ts`だけが読む |
+| `SUPABASE_SERVICE_ROLE_KEY` | 未登録（ローカルは`.env.local`） | Dev secret key（Sensitive） | Prod secret key（Sensitive） | session の自動発行（`/api/auth/start`）とバックアップで使う。server-onlyの`lib/supabase/admin.ts`だけが読む。**未登録だとアプリを開けない**（ログイン画面が無く、この鍵でsessionを作るため） |
 | `OPENAI_API_KEY` | 未登録（ローカルは`.env.local`） | Dev用project key（Sensitive、任意） | Prod用project key（Sensitive、任意） | URL取り込みでJSON-LDが無いページをAIで読む時だけ使う。未設定でも他の機能は動く |
 | `OPENAI_IMPORT_MODEL` | 任意 | 任意 | 任意 | 秘密値ではない。既定 `gpt-5-mini` |
 | `CRON_SECRET` | 未登録 | 未登録 | 16文字以上のランダム値（Sensitive） | バックアップCron（`/api/cron/backup`）の認証。CronはProductionでだけ動く |
-| `PIN_PEPPER` | 未登録（ローカルは`.env.local`） | Dev用の値（Sensitive） | Prod用の別の値（Sensitive） | PINハッシュと送信元HMACのpepper。32文字以上。変えると登録済みPINが無効になる |
 | `BLOB_STORE_ID` / `BLOB_READ_WRITE_TOKEN` | 未登録 | 未登録 | private Blob storeをProductionだけに接続すると自動で入る | バックアップの保存先。storeは作成時にPrivateを選ぶ（後から変えられない）。手元での取り出しは`.env.backup.local`に置く（`docs/runbooks/backup-restore.md`） |
 
 未使用のサーバー秘密値は空値で登録せず、変数そのものを未登録にします。必要になった機能だけが遅延検証する設計です。
@@ -64,8 +63,8 @@ Vercel Development環境の値を取得する場合は、まず正しいVercel p
 - Pull Request / feature branchはPreview deploymentとして確認し、Development用Supabaseへ接続する。
 - `main`へマージしたdeploymentだけがProduction環境変数とSupabase Production projectを使う。
 - Vercel環境変数を変更した場合は新しいdeploymentを作る。既存deploymentへ遡って反映されない。
-- 認証とRLSが完成するまではProductionへ実データを入れず、一般公開URLで実運用を始めない。
-- 現在GitHub repositoryはpublicです。Preview URLを共有する場合も、秘密値・実データ・個人情報を画面やfixtureへ出さない。認証実装後はVercel Deployment Protectionの利用可否も確認する。
+- ログイン画面が無いため、URLを知っている人は誰でも読み書きできます（2026-10-08の変更）。ProductionのURLは共有せず、Preview URLも必要な人だけに渡す。
+- 現在GitHub repositoryはpublicです。Preview URLを共有する場合も、秘密値・実データ・個人情報を画面やfixtureへ出さない。URLだけが防壁になるため、Vercel Deployment Protectionを併用できるかも確認する。
 
 ## 6. GitHub Actions / CI
 
@@ -84,7 +83,7 @@ CIは`.github/workflows/ci.yml`のとおり、Supabase/OpenAI/Vercel/Blobのsecr
 - [ ] 不要なservice role / OpenAI / Cron / Blob secretは未登録（登録する時はSensitiveを有効化）
 - [ ] `.env.local`がGit管理外であることを確認
 - [ ] GitHub Actionsに実サービスのsecretが不要であることを確認
-- [ ] 認証・RLS完成までProductionへ実データを登録しない
+- [ ] ProductionのURLを第三者へ共有しない（ログイン画面が無く、URLだけが防壁になる）
 
 ## 8. 値の更新・漏えい時
 

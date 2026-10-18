@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MEMBER_1, MEMBER_2, PIN_1, PIN_2, login, snap } from "./helpers";
+import { snap } from "./helpers";
 
 // 1x1のPNG（写真アップロードの確認用）
 const PNG_1X1 = Buffer.from(
@@ -9,7 +9,6 @@ const PNG_1X1 = Buffer.from(
 
 test.describe.serial("レシピ（Gate 2）", () => {
   test("レシピを登録し、人数換算・評価・お気に入り・調理モードを使える", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes");
     await expect(page.getByText("レシピはまだありません")).toBeVisible();
     await snap(page, "10-recipes-empty");
@@ -60,7 +59,6 @@ test.describe.serial("レシピ（Gate 2）", () => {
   });
 
   test("一覧で検索・絞り込みができ、編集できる", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes");
     await expect(page.getByRole("link", { name: /E2E照り焼き/ })).toBeVisible();
     await snap(page, "14-recipes-list");
@@ -83,16 +81,14 @@ test.describe.serial("レシピ（Gate 2）", () => {
     await expect(page.getByRole("heading", { level: 1, name: "E2E鶏の照り焼き" })).toBeVisible();
   });
 
-  test("もう1人も同じレシピを見られ、相手の評価が表示される", async ({ page }) => {
-    await login(page, MEMBER_2, PIN_2);
+  test("評価とお気に入りはふたり共通として残る", async ({ page }) => {
     await page.goto("/recipes");
     await page.getByRole("link", { name: /E2E鶏の照り焼き/ }).click();
-    await expect(page.getByText(`${MEMBER_1}さんの評価：また作りたい`)).toBeVisible();
-    await expect(page.getByRole("button", { name: "お気に入りに追加" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "✓ また作りたい" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /お気に入り登録済み/ })).toBeVisible();
   });
 
   test("入力に誤りがあると、保存せずに理由を示す", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes/new");
     await page.getByRole("button", { name: "URLなしで手入力する" }).click();
     await page.getByRole("button", { name: "保存する" }).click();
@@ -101,7 +97,6 @@ test.describe.serial("レシピ（Gate 2）", () => {
   });
 
   test("レシピを削除すると一覧から消える", async ({ page }) => {
-    await login(page, MEMBER_1, PIN_1);
     await page.goto("/recipes/new");
     await page.getByRole("button", { name: "URLなしで手入力する" }).click();
     await page.getByLabel("料理名（必須）").fill("E2E削除用");
